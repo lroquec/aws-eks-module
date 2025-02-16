@@ -1,0 +1,89 @@
+name: Reusable Release Workflow
+
+on:
+  workflow_call:
+    inputs:
+      fmt_status:
+        required: false
+        type: string
+        default: 'clean'
+    secrets:
+      TOKEN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Type of release (patch, minor, major)'
+        required: false
+        type: choice
+        options:
+          - ''
+          - 'patch'
+          - 'minor'
+          - 'major'
+        default: ''
+      tag:
+        description: 'Release tag (e.g. v1.5.1)'
+        required: false
+        type: string
+        default: ''
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: conventional Changelog Action
+        id: changelog
+        uses: TriPSs/conventional-changelog-action@v6.0.0
+        with:
+          github-token: ${{ github.event_name == 'workflow_dispatch' && secrets.GITHUB_TOKEN || secrets.TOKEN }}
+          skip-version-file: true
+
+      - name: create release for workflow_call
+        uses: ncipollo/release-action@v1
+        if: ${{ github.event_name == 'workflow_call' && steps.changelog.outputs.skipped == 'false' }}
+        with:
+          token: ${{ secrets.TOKEN }}
+          tag: ${{ steps.changelog.outputs.tag }}
+          name: ${{ inputs.fmt_status == 'needs-formatting' && '[FMT NEEDED] ' || '' }}${{ steps.changelog.outputs.tag }}
+          body: ${{ steps.changelog.outputs.clean_changelog }}
+          updateOnlyUnreleased: true
+          allowUpdates: true
+          skipIfReleaseExists: true
+
+      - name: Check if tag exists
+        id: check_tag
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+        run: |
+          if git rev-parse "${{ inputs.tag }}" >/dev/null 2>&1; then
+            echo "Tag already exists"
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+        
+      - name: Create Git Tag
+        id: create_tag
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' && steps.check_tag.outputs.exists == 'false' }}
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git tag ${{ inputs.tag }}
+          git push origin ${{ inputs.tag }}
+          echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+
+      - name: create manual release
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ inputs.tag }}
+          updateOnlyUnreleased: true
+          allowUpdates: true
+          skipIfReleaseExists: true

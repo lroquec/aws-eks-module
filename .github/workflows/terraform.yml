@@ -1,0 +1,95 @@
+name: Terraform Validation
+
+# Ensure only one workflow runs at a time
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - '*.tf'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  TERRAFORM_VERSION: "1.10.0"
+
+jobs:
+  terraform-validation:
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
+    outputs:
+      should_release: ${{ steps.check-changes.outputs.terraform }}
+      fmt_status: ${{ steps.fmt.outputs.status }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for Terraform changes
+        uses: dorny/paths-filter@v3
+        id: check-changes
+        with:
+          base: 'main'
+          filters: |
+            terraform:
+              - '*.tf'
+
+      - name: Set release output
+        id: set-release
+        if: steps.check-changes.outputs.terraform == 'true'
+        run: echo "should_release=true" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-${{ github.run_id }}
+          audience: sts.amazonaws.com
+          
+      - name: setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Check Format
+        id: fmt
+        run: |
+          if terraform fmt -check -recursive; then
+            echo "status=clean" >> $GITHUB_OUTPUT
+          else
+            echo "status=needs-formatting" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get example directories
+        id: set-matrix
+        run: |
+          DIRS=$(find examples -maxdepth 1 -mindepth 1 -type d | jq -R -s -c 'split("\n")[:-1]')
+          echo "directories=${DIRS}" >> $GITHUB_OUTPUT
+
+      - name: Run Terraform for each example
+        run: |
+          for dir in $(echo '["examples/complete","examples/basic-usage"]' | jq -r '.[]'); do
+            cd $dir
+            terraform init
+            terraform validate
+            terraform plan -no-color
+            cd -
+          done
+
+  trigger-release:
+    needs: terraform-validation
+    if: ${{ needs.terraform-validation.outputs.should_release }}
+    uses: ./.github/workflows/release.yml
+    with:
+      fmt_status: ${{ needs.terraform-validation.outputs.fmt_status }}
+    secrets:
+      TOKEN: ${{ secrets.GITHUB_TOKEN }}
