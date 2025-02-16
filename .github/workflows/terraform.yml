@@ -55,7 +55,7 @@ jobs:
           role-session-name: GitHubActions-${{ github.run_id }}
           audience: sts.amazonaws.com
           
-      - name: setup Terraform
+      - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
@@ -69,20 +69,19 @@ jobs:
             echo "status=needs-formatting" >> $GITHUB_OUTPUT
           fi
 
-      - name: Get example directories
-        id: set-matrix
+      - name: Find and validate Terraform directories
         run: |
-          DIRS=$(find examples -maxdepth 1 -mindepth 1 -type d | jq -R -s -c 'split("\n")[:-1]')
-          echo "directories=${DIRS}" >> $GITHUB_OUTPUT
-
-      - name: Run Terraform for each example
-        run: |
-          for dir in $(echo '["examples/complete","examples/basic-usage"]' | jq -r '.[]'); do
-            cd $dir
-            terraform init
-            terraform validate
-            terraform plan -no-color
-            cd -
+          for dir in examples/*/; do
+            if [ -n "$(find "${dir}" -name '*.tf' -print -quit)" ]; then
+              echo "Processing ${dir}"
+              cd "${dir}"
+              terraform init
+              terraform validate
+              terraform plan -no-color
+              cd - > /dev/null
+            else
+              echo "Skipping ${dir} - no Terraform files found"
+            fi
           done
 
   trigger-release:
