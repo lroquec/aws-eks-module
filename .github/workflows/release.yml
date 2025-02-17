@@ -37,6 +37,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: conventional Changelog Action
         id: changelog
@@ -44,6 +47,10 @@ jobs:
         with:
           github-token: ${{ github.event_name == 'workflow_dispatch' && secrets.GITHUB_TOKEN || secrets.TOKEN }}
           skip-version-file: true
+          git-branch: 'main'
+          release-count: 0
+          output-file: 'CHANGELOG.md'
+          config-file-path: '.versionrc.json'
 
       - name: create release for workflow_call
         uses: ncipollo/release-action@v1
