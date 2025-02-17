@@ -1,4 +1,4 @@
-name: Reusable Release Workflow
+name: Release Workflow
 
 on:
   workflow_call:
@@ -12,85 +12,101 @@ on:
         required: true
   workflow_dispatch:
     inputs:
-      release_type:
-        description: 'Type of release (patch, minor, major)'
-        required: false
-        type: choice
-        options:
-          - ''
-          - 'patch'
-          - 'minor'
-          - 'major'
-        default: ''
       tag:
         description: 'Release tag (e.g. v1.5.1)'
-        required: false
+        required: true
         type: string
-        default: ''
+
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  changelog:
+  release:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: conventional Changelog Action
-        id: changelog
-        uses: TriPSs/conventional-changelog-action@v6.0.0
-        with:
-          github-token: ${{ github.event_name == 'workflow_dispatch' && secrets.GITHUB_TOKEN || secrets.TOKEN }}
-          skip-version-file: true
-          git-branch: 'main'
-          release-count: 0
-          output-file: 'CHANGELOG.md'
-          config-file-path: '.versionrc.json'
-
-      - name: create release for workflow_call
-        uses: ncipollo/release-action@v1
-        if: ${{ github.event_name == 'workflow_call' && steps.changelog.outputs.skipped == 'false' }}
-        with:
-          token: ${{ secrets.TOKEN }}
-          tag: ${{ steps.changelog.outputs.tag }}
-          name: ${{ inputs.fmt_status == 'needs-formatting' && '[FMT NEEDED] ' || '' }}${{ steps.changelog.outputs.tag }}
-          body: ${{ steps.changelog.outputs.clean_changelog }}
-          updateOnlyUnreleased: true
-          allowUpdates: true
-          skipIfReleaseExists: true
-
+          
+      # For workflow_dispatch (manual release)
       - name: Check if tag exists
         id: check_tag
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           if git rev-parse "${{ inputs.tag }}" >/dev/null 2>&1; then
-            echo "Tag already exists"
             echo "exists=true" >> $GITHUB_OUTPUT
           else
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
         
       - name: Create Git Tag
-        id: create_tag
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' && steps.check_tag.outputs.exists == 'false' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && steps.check_tag.outputs.exists == 'false' }}
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
           git tag ${{ inputs.tag }}
           git push origin ${{ inputs.tag }}
-          echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
 
-      - name: create manual release
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.tag != '' }}
+      # For workflow_call (automatic release)
+      - name: Generate Next Tag
+        if: ${{ github.event_name == 'workflow_call' }}
+        id: next_tag
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          
+          # Analyze commits since last tag
+          COMMITS=$(git log $LATEST_TAG..HEAD --pretty=format:"%s")
+          
+          # Determine change type
+          BREAKING_CHANGE=$(echo "$COMMITS" | grep -E "^[[:alnum:]]+(\([[:alnum:]]+\))?!:" || echo "$COMMITS" | grep -i "BREAKING CHANGE:" || true)
+          FEATURE_CHANGE=$(echo "$COMMITS" | grep -E "^(feat|feature)(\([[:alnum:]]+\))?:" || true)
+          FIX_CHANGE=$(echo "$COMMITS" | grep -E "^fix(\([[:alnum:]]+\))?:" || true)
+          REFACTOR_CHANGE=$(echo "$COMMITS" | grep -E "^refactor(\([[:alnum:]]+\))?:" || true)
+          PERF_CHANGE=$(echo "$COMMITS" | grep -E "^perf(\([[:alnum:]]+\))?:" || true)
+          CHORE_ONLY=$([ -z "$BREAKING_CHANGE" ] && [ -z "$FEATURE_CHANGE" ] && [ -z "$FIX_CHANGE" ] && [ -z "$REFACTOR_CHANGE" ] && [ -z "$PERF_CHANGE" ] && echo "true" || echo "false")
+          
+          # Split current version
+          MAJOR=$(echo $LATEST_TAG | cut -d. -f1 | tr -d v)
+          MINOR=$(echo $LATEST_TAG | cut -d. -f2)
+          PATCH=$(echo $LATEST_TAG | cut -d. -f3)
+          
+          # Increment according to semantic versioning
+          if [ "$CHORE_ONLY" = "true" ]; then
+            # If only chore commits, don't create a new release
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Only chore commits found, skipping release" >> $GITHUB_STEP_SUMMARY
+            exit 0
+          elif [ ! -z "$BREAKING_CHANGE" ]; then
+            # Breaking changes increment MAJOR
+            NEXT_TAG="v$((MAJOR + 1)).0.0"
+          elif [ ! -z "$FEATURE_CHANGE" ] || [ ! -z "$REFACTOR_CHANGE" ] || [ ! -z "$PERF_CHANGE" ]; then
+            # New features, refactors or performance improvements increment MINOR
+            NEXT_TAG="v$MAJOR.$((MINOR + 1)).0"
+          elif [ ! -z "$FIX_CHANGE" ]; then
+            # Fixes increment PATCH
+            NEXT_TAG="v$MAJOR.$MINOR.$((PATCH + 1))"
+          fi
+          
+          echo "Analyzed changes:" >> $GITHUB_STEP_SUMMARY
+          echo "Breaking changes: $BREAKING_CHANGE" >> $GITHUB_STEP_SUMMARY
+          echo "Features: $FEATURE_CHANGE" >> $GITHUB_STEP_SUMMARY
+          echo "Fixes: $FIX_CHANGE" >> $GITHUB_STEP_SUMMARY
+          echo "Refactors: $REFACTOR_CHANGE" >> $GITHUB_STEP_SUMMARY
+          echo "Performance: $PERF_CHANGE" >> $GITHUB_STEP_SUMMARY
+          echo "New tag will be: $NEXT_TAG" >> $GITHUB_STEP_SUMMARY
+          
+          echo "next_tag=$NEXT_TAG" >> $GITHUB_OUTPUT
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+      # Create release
+      - name: Create Release
+        if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_call' && steps.next_tag.outputs.skip != 'true') }}
         uses: ncipollo/release-action@v1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ inputs.tag }}
-          updateOnlyUnreleased: true
+          token: ${{ github.event_name == 'workflow_dispatch' && secrets.GITHUB_TOKEN || secrets.TOKEN }}
+          tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || steps.next_tag.outputs.next_tag }}
+          name: ${{ github.event_name == 'workflow_call' && inputs.fmt_status == 'needs-formatting' && '[FMT NEEDED] ' || '' }}${{ github.event_name == 'workflow_dispatch' && inputs.tag || steps.next_tag.outputs.next_tag }}
+          generateReleaseNotes: true
           allowUpdates: true
           skipIfReleaseExists: true
