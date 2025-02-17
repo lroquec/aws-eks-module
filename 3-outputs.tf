@@ -47,3 +47,13 @@ output "oidc_provider_arn" {
   description = "The ARN of the OIDC Provider"
   value       = module.eks.oidc_provider_arn
 }
+
+output "karpenter_controller_role_arn" {
+  description = "ARN of Karpenter controller IAM role"
+  value       = var.enable_karpenter ? aws_iam_role.karpenter_controller[0].arn : null
+}
+
+output "karpenter_node_role_arn" {
+  description = "ARN of Karpenter node IAM role"
+  value       = var.enable_karpenter ? aws_iam_role.karpenter_node[0].arn : null
+}

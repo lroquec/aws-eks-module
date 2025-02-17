@@ -407,33 +407,33 @@ module "eks" {
     }
   }
 
-  eks_managed_node_group_defaults = {
-    ami_type       = "AL2023_x86_64_STANDARD"
-    instance_types = var.instance_types
+  # eks_managed_node_group_defaults = {
+  #   ami_type       = "AL2023_x86_64_STANDARD"
+  #   instance_types = var.instance_types
 
-    iam_role_additional_policies = {
-      AmazonEBSCSIDriverPolicy     = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-      AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-    }
-  }
+  #   iam_role_additional_policies = {
+  #     AmazonEBSCSIDriverPolicy     = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+  #     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  #   }
+  # }
 
-  eks_managed_node_groups = {
-    main = {
-      min_size     = var.min_size
-      max_size     = var.max_size
-      desired_size = var.desired_size
+  # eks_managed_node_groups = {
+  #   main = {
+  #     min_size     = var.min_size
+  #     max_size     = var.max_size
+  #     desired_size = var.desired_size
 
-      instance_types = var.instance_types
-      capacity_type  = var.capacity_type
+  #     instance_types = var.instance_types
+  #     capacity_type  = var.capacity_type
 
-      labels = {
-        Environment = var.environment
-        NodeGroup   = "main"
-      }
+  #     labels = {
+  #       Environment = var.environment
+  #       NodeGroup   = "main"
+  #     }
 
-      tags = local.common_tags
-    }
-  }
+  #     tags = local.common_tags
+  #   }
+  # }
 
   tags = local.common_tags
 }
@@ -442,24 +442,24 @@ resource "null_resource" "wait_for_cluster" {
   depends_on = [module.eks]
 }
 
-resource "null_resource" "update_desired_size" {
-  triggers = {
-    desired_size = var.desired_size
-  }
+# resource "null_resource" "update_desired_size" {
+#   triggers = {
+#     desired_size = var.desired_size
+#   }
 
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-c"]
+#   provisioner "local-exec" {
+#     interpreter = ["/bin/bash", "-c"]
 
-    command = <<-EOT
-      aws eks update-nodegroup-config \
-        --cluster-name ${module.eks.cluster_name} \
-        --nodegroup-name ${element(split(":", module.eks.eks_managed_node_groups["main"].node_group_id), 1)} \
-        --scaling-config desiredSize=${var.desired_size} \
-        --region ${var.aws_region} \
-        --profile default
-    EOT
-  }
-}
+#     command = <<-EOT
+#       aws eks update-nodegroup-config \
+#         --cluster-name ${module.eks.cluster_name} \
+#         --nodegroup-name ${element(split(":", module.eks.eks_managed_node_groups["main"].node_group_id), 1)} \
+#         --scaling-config desiredSize=${var.desired_size} \
+#         --region ${var.aws_region} \
+#         --profile default
+#     EOT
+#   }
+# }
 
 # Metrics Server
 resource "helm_release" "metrics_server" {
@@ -591,4 +591,184 @@ resource "helm_release" "external_dns" {
     name  = "provider"
     value = "aws"
   }
+}
+
+# Karpenter IAM Role
+resource "aws_iam_role" "karpenter_controller" {
+  count = var.enable_karpenter ? 1 : 0
+  name  = "${var.cluster_name}-karpenter-controller"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "karpenter_controller" {
+  count = var.enable_karpenter ? 1 : 0
+  name  = "karpenter-policy"
+  role  = aws_iam_role.karpenter_controller[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateLaunchTemplate",
+          "ec2:CreateFleet",
+          "ec2:RunInstances",
+          "ec2:CreateTags",
+          "iam:PassRole",
+          "ec2:TerminateInstances",
+          "ec2:DescribeLaunchTemplates",
+          "ec2:DescribeInstances",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeInstanceTypeOfferings",
+          "ec2:DescribeAvailabilityZones",
+          "ssm:GetParameter"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+# Create Karpenter node IAM role
+resource "aws_iam_role" "karpenter_node" {
+  count = var.enable_karpenter ? 1 : 0
+  name  = "${var.cluster_name}-karpenter-node"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy_attachment" "karpenter_node_policies" {
+  for_each = var.enable_karpenter ? toset([
+    "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
+    "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
+    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
+    "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+  ]) : []
+
+  policy_arn = each.value
+  role       = aws_iam_role.karpenter_node[0].name
+}
+
+# Karpenter Helm Chart
+resource "helm_release" "karpenter" {
+  count = var.enable_karpenter ? 1 : 0
+
+  namespace        = "karpenter"
+  create_namespace = true
+
+  name       = "karpenter"
+  repository = "oci://public.ecr.aws/karpenter"
+  chart      = "karpenter"
+  version    = var.karpenter_version
+
+  set {
+    name  = "settings.aws.clusterName"
+    value = module.eks.cluster_name
+  }
+
+  set {
+    name  = "settings.aws.clusterEndpoint"
+    value = module.eks.cluster_endpoint
+  }
+
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = aws_iam_role.karpenter_controller[0].arn
+  }
+
+  set {
+    name  = "settings.aws.defaultInstanceProfile"
+    value = aws_iam_role.karpenter_node[0].name
+  }
+
+  depends_on = [
+    module.eks,
+    aws_iam_role.karpenter_controller,
+    aws_iam_role.karpenter_node
+  ]
+}
+
+resource "kubectl_manifest" "karpenter_provisioner" {
+  count = var.enable_karpenter ? 1 : 0
+  yaml_body = <<-YAML
+apiVersion: karpenter.sh/v1alpha5
+kind: Provisioner
+metadata:
+  name: default
+spec:
+  requirements:
+    - key: kubernetes.io/arch
+      operator: In
+      values: ["amd64"]
+    - key: kubernetes.io/os
+      operator: In
+      values: ["linux"]
+    - key: karpenter.sh/capacity-type
+      operator: In
+      values: ["spot"]
+    - key: node.kubernetes.io/instance-type
+      operator: In
+      values: ["t3.small", "t3.medium"]  # Small and medium instance types
+  limits:
+    resources:
+      cpu: 50
+      memory: 50Gi
+  providerRef:
+    name: default
+  ttlSecondsAfterEmpty: 30  # Delete nodes after 30 seconds of being empty
+YAML
+}
+
+resource "kubectl_manifest" "karpenter_node_template" {
+  count = var.enable_karpenter ? 1 : 0
+  yaml_body = <<-YAML
+apiVersion: karpenter.k8s.aws/v1alpha1
+kind: AWSNodeTemplate
+metadata:
+  name: default
+spec:
+  subnetSelector:
+    kubernetes.io/role: private
+  securityGroupSelector:
+    kubernetes.io/cluster/${module.eks.cluster_name}: owned
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 20Gi
+        volumeType: gp3
+  tags:
+    Environment: ${var.environment}
+    ManagedBy: karpenter
+    Purpose: testing
+YAML
 }
