@@ -1,9 +1,5 @@
 data "aws_caller_identity" "current" {}
 
-data "aws_availability_zones" "available" {
-  state = "available"
-}
-
 locals {
   admin_role_name     = "${var.name_prefix}-admin"
   developer_role_name = "${var.name_prefix}-developer"
