@@ -142,3 +142,21 @@ variable "enable_efs_csi_driver" {
   type        = bool
   default     = false
 }
+
+variable "enable_metrics_server" {
+  description = "Enable metrics server"
+  type        = bool
+  default     = true
+}
+
+variable "enable_load_balancer_controller" {
+  description = "Enable AWS Load Balancer Controller"
+  type        = bool
+  default     = true
+}
+
+variable "enable_external_dns" {
+  description = "Enable external DNS"
+  type        = bool
+  default     = true
+}
