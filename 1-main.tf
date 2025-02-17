@@ -32,6 +32,7 @@ resource "aws_iam_role" "admin_role" {
   tags = var.tags
 }
 
+# Admin Role Policy - More restrictive permissions
 resource "aws_iam_role_policy" "admin_policy" {
   name = "${local.admin_role_name}-policy"
   role = aws_iam_role.admin_role.id
@@ -41,12 +42,29 @@ resource "aws_iam_role_policy" "admin_policy" {
     Statement = [
       {
         Action = [
-          "eks:*",
-          "iam:ListRoles",
+          "eks:DescribeCluster",
+          "eks:ListClusters",
+          "eks:CreateCluster",
+          "eks:DeleteCluster",
+          "eks:UpdateClusterVersion",
+          "eks:UpdateClusterConfig"
+        ]
+        Effect   = "Allow"
+        Resource = "arn:aws:eks:${var.aws_region}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"
+      },
+      {
+        Action = [
+          "iam:ListRoles"
+        ]
+        Effect   = "Allow"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*"
+      },
+      {
+        Action = [
           "ssm:GetParameter"
         ]
         Effect   = "Allow"
-        Resource = "*"
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/eks/${var.cluster_name}/*"
       }
     ]
   })
@@ -93,6 +111,7 @@ resource "aws_iam_role" "developer_role" {
   tags = var.tags
 }
 
+# Developer Role Policy - More restrictive permissions
 resource "aws_iam_role_policy" "developer_policy" {
   name = "${local.developer_role_name}-policy"
   role = aws_iam_role.developer_role.id
@@ -106,12 +125,24 @@ resource "aws_iam_role_policy" "developer_policy" {
           "eks:ListClusters",
           "eks:DescribeNodegroup",
           "eks:ListNodegroups",
-          "eks:AccessKubernetesApi",
-          "iam:ListRoles",
+          "eks:AccessKubernetesApi"
+        ]
+        Effect   = "Allow"
+        Resource = "arn:aws:eks:${var.aws_region}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"
+      },
+      {
+        Action = [
+          "iam:ListRoles"
+        ]
+        Effect   = "Allow"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*"
+      },
+      {
+        Action = [
           "ssm:GetParameter"
         ]
         Effect   = "Allow"
-        Resource = "*"
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/eks/${var.cluster_name}/*"
       }
     ]
   })
@@ -158,6 +189,7 @@ resource "aws_iam_role" "readonly_role" {
   tags = local.common_tags
 }
 
+# Readonly Role Policy - More restrictive permissions
 resource "aws_iam_role_policy" "readonly_policy" {
   name = "${local.readonly_role_name}-policy"
   role = aws_iam_role.readonly_role.id
@@ -171,12 +203,24 @@ resource "aws_iam_role_policy" "readonly_policy" {
           "eks:ListClusters",
           "eks:DescribeNodegroup",
           "eks:ListNodegroups",
-          "eks:AccessKubernetesApi",
-          "iam:ListRoles",
+          "eks:AccessKubernetesApi"
+        ]
+        Effect   = "Allow"
+        Resource = "arn:aws:eks:${var.aws_region}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"
+      },
+      {
+        Action = [
+          "iam:ListRoles"
+        ]
+        Effect   = "Allow"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*"
+      },
+      {
+        Action = [
           "ssm:GetParameter"
         ]
         Effect   = "Allow"
-        Resource = "*"
+        Resource = "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/eks/${var.cluster_name}/*"
       }
     ]
   })
@@ -243,7 +287,7 @@ resource "aws_iam_user_group_membership" "readonly_users" {
 }
 
 module "vpc" {
-  source       = "git::https://github.com/lroquec/aws-vpc-module.git//?ref=v2.0.1" # Use remote module
+  source       = "git::https://github.com/lroquec/aws-vpc-module.git//?ref=27a3710066d6b1db6d725eb768cbe24e14ec44f7" # commit hash of version v2.0.1
   environment  = var.environment
   project_name = var.name_prefix
   accountable  = var.accountable
