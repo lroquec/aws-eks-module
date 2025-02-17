@@ -407,33 +407,42 @@ module "eks" {
     }
   }
 
-  # eks_managed_node_group_defaults = {
-  #   ami_type       = "AL2023_x86_64_STANDARD"
-  #   instance_types = var.instance_types
+  eks_managed_node_group_defaults = {
+    ami_type       = "AL2023_x86_64_STANDARD"
+    instance_types = ["t3.small"]
 
-  #   iam_role_additional_policies = {
-  #     AmazonEBSCSIDriverPolicy     = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
-  #     AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-  #   }
-  # }
+    iam_role_additional_policies = {
+      AmazonEBSCSIDriverPolicy     = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+      AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    }
+  }
 
-  # eks_managed_node_groups = {
-  #   main = {
-  #     min_size     = var.min_size
-  #     max_size     = var.max_size
-  #     desired_size = var.desired_size
+  eks_managed_node_groups = {
+    main = {
+      min_size     = 1
+      max_size     = 1
+      desired_size = 1
 
-  #     instance_types = var.instance_types
-  #     capacity_type  = var.capacity_type
+      instance_types = ["t3.small"]
+      capacity_type  = "ON_DEMAND"
 
-  #     labels = {
-  #       Environment = var.environment
-  #       NodeGroup   = "main"
-  #     }
+      labels = {
+        Environment = var.environment
+        NodeGroup   = "initial"
+        Purpose     = "bootstrap"
+      }
 
-  #     tags = local.common_tags
-  #   }
-  # }
+      taints = {
+        dedicated = {
+          key    = "bootstrap"
+          value  = "true"
+          effect = "NO_SCHEDULE"
+        }
+      }
+
+      tags = local.common_tags
+    }
+  }
 
   tags = local.common_tags
 }
@@ -719,7 +728,7 @@ resource "helm_release" "karpenter" {
 }
 
 resource "kubectl_manifest" "karpenter_provisioner" {
-  count = var.enable_karpenter ? 1 : 0
+  count     = var.enable_karpenter ? 1 : 0
   yaml_body = <<-YAML
 apiVersion: karpenter.sh/v1alpha5
 kind: Provisioner
@@ -750,7 +759,7 @@ YAML
 }
 
 resource "kubectl_manifest" "karpenter_node_template" {
-  count = var.enable_karpenter ? 1 : 0
+  count     = var.enable_karpenter ? 1 : 0
   yaml_body = <<-YAML
 apiVersion: karpenter.k8s.aws/v1alpha1
 kind: AWSNodeTemplate
