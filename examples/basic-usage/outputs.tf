@@ -8,3 +8,7 @@ output "vpc_id" {
   value       = module.eks.vpc_id
 }
 
+output "kubeconfig" {
+  description = "Kubeconfig for EKS cluster"
+  value       = module.eks.kubeconfig
+}

@@ -57,3 +57,8 @@ output "karpenter_node_role_arn" {
   description = "ARN of Karpenter node IAM role"
   value       = var.enable_karpenter ? aws_iam_role.karpenter_node[0].arn : null
 }
+
+output "kubeconfig" {
+  description = "Kubeconfig for EKS cluster"
+  value       = "aws eks update-kubeconfig --name ${module.eks.cluster_name} --region ${var.aws_region}"
+}

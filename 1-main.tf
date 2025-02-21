@@ -328,6 +328,10 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
+  cluster_security_group_tags = {
+    "karpenter.sh/discovery" = var.cluster_name
+  }
+
   cluster_enabled_log_types = [
     "audit",
     "api",
@@ -450,25 +454,6 @@ module "eks" {
 resource "null_resource" "wait_for_cluster" {
   depends_on = [module.eks]
 }
-
-# resource "null_resource" "update_desired_size" {
-#   triggers = {
-#     desired_size = var.desired_size
-#   }
-
-#   provisioner "local-exec" {
-#     interpreter = ["/bin/bash", "-c"]
-
-#     command = <<-EOT
-#       aws eks update-nodegroup-config \
-#         --cluster-name ${module.eks.cluster_name} \
-#         --nodegroup-name ${element(split(":", module.eks.eks_managed_node_groups["main"].node_group_id), 1)} \
-#         --scaling-config desiredSize=${var.desired_size} \
-#         --region ${var.aws_region} \
-#         --profile default
-#     EOT
-#   }
-# }
 
 # Metrics Server
 resource "helm_release" "metrics_server" {
@@ -663,7 +648,13 @@ resource "aws_iam_role_policy" "karpenter_controller" {
           "iam:GetInstanceProfile",
           "iam:TagInstanceProfile",
           "iam:AddRoleToInstanceProfile",
-          "iam:RemoveRoleFromInstanceProfile"
+          "iam:RemoveRoleFromInstanceProfile",
+          "ec2:CreateSecurityGroup",
+          "ec2:DeleteSecurityGroup",
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:RevokeSecurityGroupIngress",
+          "iam:CreateServiceLinkedRole",
+          "ec2:DeleteLaunchTemplate"
         ]
         Resource = "*"
       },
@@ -747,31 +738,34 @@ resource "helm_release" "karpenter" {
     value = "true"
   }
 
+  set {
+    name  = "controller.topologySpreadConstraints[0].whenUnsatisfiable"
+    value = "ScheduleAnyway"
+  }
+
+  set {
+    name  = "controller.topology.enabled"
+    value = "false"
+  }
+
+  set {
+    name  = "replicas"
+    value = "1"
+  }
+
   depends_on = [time_sleep.wait_for_cluster]
 }
-
-# resource "null_resource" "install_karpenter_crds" {
-#   provisioner "local-exec" {
-#     command = <<EOT
-#       kubectl apply -f https://raw.githubusercontent.com/aws/karpenter/main/pkg/apis/crds/karpenter.sh_nodeclaims.yaml
-#       kubectl apply -f https://raw.githubusercontent.com/aws/karpenter/main/pkg/apis/crds/karpenter.sh_nodepools.yaml
-#       kubectl apply -f https://raw.githubusercontent.com/aws/karpenter/main/pkg/apis/crds/karpenter.k8s.aws_ec2nodeclasses.yaml
-#     EOT
-#   }
-
-#   depends_on = [helm_release.karpenter]
-# }
 
 # 3. Wait till CRDs
 resource "time_sleep" "wait_for_crds" {
   count           = var.enable_karpenter ? 1 : 0
   depends_on      = [helm_release.karpenter]
-  create_duration = "30s"
+  create_duration = "60s"
 }
 
 resource "kubectl_manifest" "karpenter_provisioner" {
   count      = var.enable_karpenter ? 1 : 0
-  depends_on = [time_sleep.wait_for_crds]
+  depends_on = [time_sleep.wait_for_crds, kubectl_manifest.karpenter_node_template]
   yaml_body  = <<-YAML
 apiVersion: karpenter.sh/v1
 kind: NodePool
@@ -795,32 +789,41 @@ spec:
           values: ["t3.small", "t3.medium"]
       nodeClassRef:
         name: default
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
   limits:
     cpu: 50
     memory: 50Gi
   disruption:
-    consolidationPolicy: WhenEmpty
+    consolidationPolicy: WhenEmptyOrUnderutilized
     consolidateAfter: 30s
+    expireAfter: 10m
 YAML
+}
+
+data "aws_ssm_parameter" "eks_ami" {
+  name = "/aws/service/eks/optimized-ami/${var.cluster_version}/amazon-linux-2/recommended/image_id"
 }
 
 resource "kubectl_manifest" "karpenter_node_template" {
   count      = var.enable_karpenter ? 1 : 0
-  depends_on = [helm_release.karpenter]
+  depends_on = [time_sleep.wait_for_crds]
   yaml_body  = <<-YAML
 apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
   name: default
 spec:
-  amiFamily: AL2023
+  amiFamily: AL2
   role: "${aws_iam_role.karpenter_node[0].name}"
   subnetSelectorTerms:
     - tags:
         kubernetes.io/role: private
   securityGroupSelectorTerms:
     - tags:
-        kubernetes.io/cluster/${module.eks.cluster_name}: owned
+        karpenter.sh/discovery: ${var.cluster_name}
+  amiSelectorTerms:
+    - id: "${data.aws_ssm_parameter.eks_ami.value}"
   blockDeviceMappings:
     - deviceName: /dev/xvda
       ebs:
