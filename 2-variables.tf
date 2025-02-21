@@ -69,7 +69,7 @@ variable "cluster_name" {
 variable "cluster_version" {
   description = "Kubernetes version to use for the EKS cluster"
   type        = string
-  default     = "1.31"
+  default     = "1.32"
 }
 
 variable "vpc_cidr" {
@@ -77,41 +77,6 @@ variable "vpc_cidr" {
   type        = string
   default     = "10.0.0.0/16"
 }
-
-# variable "instance_types" {
-#   description = "List of EC2 instance types for the node group"
-#   type        = list(string)
-#   default     = ["t3.medium"]
-# }
-
-# variable "min_size" {
-#   description = "Minimum size of the node group"
-#   type        = number
-#   default     = 1
-# }
-
-# variable "max_size" {
-#   description = "Maximum size of the node group"
-#   type        = number
-#   default     = 2
-# }
-
-# variable "desired_size" {
-#   description = "Desired size of the node group"
-#   type        = number
-#   default     = 1
-# }
-
-# variable "capacity_type" {
-#   description = "Type of capacity associated with the EKS Node Group. Valid values: ON_DEMAND, SPOT"
-#   type        = string
-#   default     = "ON_DEMAND"
-
-#   validation {
-#     condition     = contains(["ON_DEMAND", "SPOT"], var.capacity_type)
-#     error_message = "Capacity type must be either ON_DEMAND or SPOT"
-#   }
-# }
 
 variable "accountable" {
   description = "Accountable team for the EKS cluster"
@@ -170,5 +135,5 @@ variable "enable_karpenter" {
 variable "karpenter_version" {
   description = "Version of Karpenter to install"
   type        = string
-  default     = "v0.34.0"
+  default     = "1.2.1"
 }

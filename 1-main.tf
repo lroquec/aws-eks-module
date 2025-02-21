@@ -301,6 +301,14 @@ module "vpc" {
   create_elasticache_subnets = false
   enable_flow_log            = false
 
+  private_subnet_tags = merge(
+    {
+      "kubernetes.io/role/internal-elb" = "1"
+      "kubernetes.io/role"              = "private"
+      "karpenter.sh/discovery"          = var.cluster_name
+    }
+  )
+
   custom_ports = {
     22  = "139.47.126.204/32"
     80  = "0.0.0.0/0"
@@ -366,7 +374,7 @@ module "eks" {
 
   access_entries = {
     admin = {
-      kubernetes_groups = ["system:masters"]
+      kubernetes_groups = ["eks-admin"]
       principal_arn     = aws_iam_role.admin_role.arn
       type              = "STANDARD"
       policy_associations = {
@@ -423,21 +431,13 @@ module "eks" {
       max_size     = 1
       desired_size = 1
 
-      instance_types = ["t3.small"]
+      instance_types = ["t3.medium"]
       capacity_type  = "ON_DEMAND"
 
       labels = {
         Environment = var.environment
         NodeGroup   = "initial"
         Purpose     = "bootstrap"
-      }
-
-      taints = {
-        dedicated = {
-          key    = "bootstrap"
-          value  = "true"
-          effect = "NO_SCHEDULE"
-        }
       }
 
       tags = local.common_tags
@@ -609,15 +609,19 @@ resource "aws_iam_role" "karpenter_controller" {
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
+    Statement = [{
+      Action = "sts:AssumeRoleWithWebIdentity"
+      Effect = "Allow"
+      Principal = {
+        Federated = module.eks.oidc_provider_arn
+      }
+      Condition = {
+        StringEquals = {
+          "${replace(module.eks.oidc_provider_arn, "/^(.*provider/)/", "")}:sub" = "system:serviceaccount:karpenter:karpenter"
+          "${replace(module.eks.oidc_provider_arn, "/^(.*provider/)/", "")}:aud" = "sts.amazonaws.com"
         }
       }
-    ]
+    }]
   })
 
   tags = local.common_tags
@@ -647,12 +651,32 @@ resource "aws_iam_role_policy" "karpenter_controller" {
           "ec2:DescribeInstanceTypes",
           "ec2:DescribeInstanceTypeOfferings",
           "ec2:DescribeAvailabilityZones",
-          "ssm:GetParameter"
+          "ssm:GetParameter",
+          "ec2:DescribeImages",
+          "iam:GetInstanceProfile",
+          "iam:CreateInstanceProfile",
+          "iam:DeleteInstanceProfile",
+          "ec2:DescribeSpotPriceHistory",
+          "pricing:GetProducts",
+          "iam:CreateInstanceProfile",
+          "iam:DeleteInstanceProfile",
+          "iam:GetInstanceProfile",
+          "iam:TagInstanceProfile",
+          "iam:AddRoleToInstanceProfile",
+          "iam:RemoveRoleFromInstanceProfile"
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "eks:DescribeCluster"
+        ]
+        Resource = "arn:aws:eks:${var.aws_region}:${data.aws_caller_identity.current.account_id}:cluster/${var.cluster_name}"
       }
     ]
   })
+
 }
 
 # Create Karpenter node IAM role
@@ -688,7 +712,11 @@ resource "aws_iam_role_policy_attachment" "karpenter_node_policies" {
   role       = aws_iam_role.karpenter_node[0].name
 }
 
-# Karpenter Helm Chart
+resource "time_sleep" "wait_for_cluster" {
+  depends_on      = [module.eks]
+  create_duration = "30s"
+}
+
 resource "helm_release" "karpenter" {
   count = var.enable_karpenter ? 1 : 0
 
@@ -701,12 +729,12 @@ resource "helm_release" "karpenter" {
   version    = var.karpenter_version
 
   set {
-    name  = "settings.aws.clusterName"
+    name  = "settings.clusterName"
     value = module.eks.cluster_name
   }
 
   set {
-    name  = "settings.aws.clusterEndpoint"
+    name  = "settings.clusterEndpoint"
     value = module.eks.cluster_endpoint
   }
 
@@ -714,62 +742,85 @@ resource "helm_release" "karpenter" {
     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
     value = aws_iam_role.karpenter_controller[0].arn
   }
-
   set {
-    name  = "settings.aws.defaultInstanceProfile"
-    value = aws_iam_role.karpenter_node[0].name
+    name  = "crds.install"
+    value = "true"
   }
 
-  depends_on = [
-    module.eks,
-    aws_iam_role.karpenter_controller,
-    aws_iam_role.karpenter_node
-  ]
+  depends_on = [time_sleep.wait_for_cluster]
+}
+
+# resource "null_resource" "install_karpenter_crds" {
+#   provisioner "local-exec" {
+#     command = <<EOT
+#       kubectl apply -f https://raw.githubusercontent.com/aws/karpenter/main/pkg/apis/crds/karpenter.sh_nodeclaims.yaml
+#       kubectl apply -f https://raw.githubusercontent.com/aws/karpenter/main/pkg/apis/crds/karpenter.sh_nodepools.yaml
+#       kubectl apply -f https://raw.githubusercontent.com/aws/karpenter/main/pkg/apis/crds/karpenter.k8s.aws_ec2nodeclasses.yaml
+#     EOT
+#   }
+
+#   depends_on = [helm_release.karpenter]
+# }
+
+# 3. Wait till CRDs
+resource "time_sleep" "wait_for_crds" {
+  count           = var.enable_karpenter ? 1 : 0
+  depends_on      = [helm_release.karpenter]
+  create_duration = "30s"
 }
 
 resource "kubectl_manifest" "karpenter_provisioner" {
-  count     = var.enable_karpenter ? 1 : 0
-  yaml_body = <<-YAML
-apiVersion: karpenter.sh/v1alpha5
-kind: Provisioner
+  count      = var.enable_karpenter ? 1 : 0
+  depends_on = [time_sleep.wait_for_crds]
+  yaml_body  = <<-YAML
+apiVersion: karpenter.sh/v1
+kind: NodePool
 metadata:
   name: default
 spec:
-  requirements:
-    - key: kubernetes.io/arch
-      operator: In
-      values: ["amd64"]
-    - key: kubernetes.io/os
-      operator: In
-      values: ["linux"]
-    - key: karpenter.sh/capacity-type
-      operator: In
-      values: ["spot"]
-    - key: node.kubernetes.io/instance-type
-      operator: In
-      values: ["t3.small", "t3.medium"]  # Small and medium instance types
+  template:
+    spec:
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot"]
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values: ["t3.small", "t3.medium"]
+      nodeClassRef:
+        name: default
   limits:
-    resources:
-      cpu: 50
-      memory: 50Gi
-  providerRef:
-    name: default
-  ttlSecondsAfterEmpty: 30  # Delete nodes after 30 seconds of being empty
+    cpu: 50
+    memory: 50Gi
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 30s
 YAML
 }
 
 resource "kubectl_manifest" "karpenter_node_template" {
-  count     = var.enable_karpenter ? 1 : 0
-  yaml_body = <<-YAML
-apiVersion: karpenter.k8s.aws/v1alpha1
-kind: AWSNodeTemplate
+  count      = var.enable_karpenter ? 1 : 0
+  depends_on = [helm_release.karpenter]
+  yaml_body  = <<-YAML
+apiVersion: karpenter.k8s.aws/v1
+kind: EC2NodeClass
 metadata:
   name: default
 spec:
-  subnetSelector:
-    kubernetes.io/role: private
-  securityGroupSelector:
-    kubernetes.io/cluster/${module.eks.cluster_name}: owned
+  amiFamily: AL2023
+  role: "${aws_iam_role.karpenter_node[0].name}"
+  subnetSelectorTerms:
+    - tags:
+        kubernetes.io/role: private
+  securityGroupSelectorTerms:
+    - tags:
+        kubernetes.io/cluster/${module.eks.cluster_name}: owned
   blockDeviceMappings:
     - deviceName: /dev/xvda
       ebs:

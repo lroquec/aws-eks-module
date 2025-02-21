@@ -1,7 +1,3 @@
-provider "aws" {
-  region = "us-east-1"
-}
-
 terraform {
   required_version = ">= 1.7.0"
 
@@ -29,20 +25,54 @@ terraform {
   }
 }
 
+provider "aws" {
+  region = "us-east-1"
+}
+
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+  }
+}
+
+provider "helm" {
+  kubernetes {
+    host                   = module.eks.cluster_endpoint
+    cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+
+    exec {
+      api_version = "client.authentication.k8s.io/v1beta1"
+      command     = "aws"
+      args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+    }
+  }
+}
+
+provider "kubectl" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  load_config_file       = false
+
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args        = ["eks", "get-token", "--cluster-name", module.eks.cluster_name]
+  }
+}
+
 module "eks" {
   source = "../../"
 
   environment     = "prod"
   cluster_name    = "module-test"
-  cluster_version = 1.31
+  cluster_version = 1.32
 
   vpc_cidr = "10.0.0.0/16"
-
-  # instance_types = ["t3.medium"]
-  # min_size       = 1
-  # max_size       = 2
-  # desired_size   = 1
-  # capacity_type  = "SPOT" # Using SPOT instances
 
   tags = {
     Team    = "platform"
