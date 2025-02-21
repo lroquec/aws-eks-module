@@ -797,7 +797,7 @@ spec:
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
     consolidateAfter: 30s
-    expireAfter: 10m
+    expireAfter: 24h
 YAML
 }
 
