@@ -68,7 +68,7 @@ terraform init
 ```hcl
 environment     = "dev"
 cluster_name    = "my-eks-cluster"
-cluster_version = "1.31"
+cluster_version = "1.32"
 vpc_cidr        = "10.0.0.0/16"
 ```
 
@@ -83,23 +83,23 @@ terraform apply
 
 ```
 .
-├── versions.tf                # Versions
-├── main.tf                   # Setup base and locals
-├── variables.tf              # Variables
-├── outputs.tf                # Outputs
-├── vpc.tf                    # VPC
-├── iam-roles.tf              # IAM roles
-├── iam-users.tf              # User management
-├── eks-cluster.tf            # Cluster EKS
-├── eks-addons/
-│   ├── karpenter.tf          # Karpenter
-│   ├── metrics-server.tf     # Metrics Server
-│   ├── alb-controller.tf     # AWS Load Balancer Controller
-│   └── external-dns.tf       # External DNS
-└── policies/                 # Policies
-    ├── aws-load-balancer-controller-policy.json
-    └── external-dns-policy.json
-└── examples/         # Example configurations
+├── versions.tf            # Provider and version constraints
+├── main.tf                # Main configuration and locals
+├── variables.tf           # Input variables
+├── outputs.tf             # Output values
+├── vpc.tf                 # VPC configuration
+├── iam-roles.tf           # IAM roles for cluster access
+├── iam-users.tf           # IAM users management
+├── eks-cluster.tf         # EKS cluster configuration
+├── karpenter.tf           # Karpenter autoscaler
+├── alb-controller.tf      # AWS Load Balancer Controller
+├── external-dns.tf        # External DNS
+├── metrics-server.tf      # Metrics Server
+├── policies/              # IAM policy JSON files
+│   ├── aws-load-balancer-controller-policy.json
+│   └── external-dns-policy.json
+└── examples/              # Example configurations
+    └── basic-usage/       # Basic cluster setup
 ```
 
 ## Important Variables
@@ -108,7 +108,7 @@ terraform apply
 | --------------------- | --------------------------------- | ------ | ------------------ |
 | cluster_name          | Name of the EKS cluster           | string | "test-eks-cluster" |
 | environment           | Environment name                  | string | "dev"              |
-| cluster_version       | Kubernetes version                | string | "1.31"             |
+| cluster_version       | Kubernetes version                | string | "1.32"             |
 | vpc_cidr              | CIDR block for VPC                | string | "10.0.0.0/16"      |
 | enable_karpenter      | Enable Karpenter node provisioner | bool   | false              |
 | enable_metrics_server | Enable metrics server             | bool   | true               |
@@ -158,27 +158,33 @@ developer_users       = ["dev1", "dev2"]
 
 ## Best Practices Implemented
 
-1. **Security**
+1. **Code Organization**
+
+   - Thematic file separation for better navigation
+   - Logical grouping of related resources
+   - Clear separation of concerns
+
+2. **Security**
 
    - Private subnet usage for worker nodes
    - RBAC implementation
    - Least privilege principle in IAM roles
    - Security group restrictions
 
-2. **Scalability**
+3. **Scalability**
 
    - Karpenter for efficient node scaling
    - Support for multiple node groups
    - Configurable auto-scaling settings
 
-3. **Maintainability**
+4. **Maintainability**
 
-   - Modular design
+   - Consistent variable naming
    - Consistent tagging
    - Clear variable organization
    - Comprehensive documentation
 
-4. **Monitoring**
+5. **Monitoring**
    - Metrics Server integration
    - CloudWatch logging
    - Control plane logging
