@@ -82,8 +82,24 @@ module "eks" {
   accountable = "devops team"
   git_repo    = "https://github.com/company/ecommerce-platform"
 
-  enable_ebs_csi_driver     = true
+  enable_ebs_csi_driver = true
+
+  # Auto Scaling Configuration (just one can be enabled)
   enable_karpenter          = false
   enable_cluster_autoscaler = true
+
+  # Monitoring and Observability  (just one can be enabled)
+  enable_prometheus_stack         = true
+  enable_cloudwatch_observability = false
+
+  # Prometheus Stack Configuration
+  prometheus_storage_size   = "20Gi"
+  prometheus_retention      = "7d"
+  grafana_storage_size      = "5Gi"
+  alertmanager_storage_size = "2Gi"
+
+  # For production use, use a secure password
+  # enable_prometheus_ingress   = true
+  # grafana_admin_password      = var.grafana_admin_password
 
 }

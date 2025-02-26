@@ -144,8 +144,63 @@ variable "enable_cluster_autoscaler" {
   default     = false
 }
 
-# Validation rule to ensure that both Karpenter and Cluster Autoscaler are not enabled simultaneously
+variable "enable_prometheus_stack" {
+  description = "Enable Prometheus Kube Stack (Prometheus, Grafana, AlertManager)"
+  type        = bool
+  default     = false
+}
+
+variable "prometheus_storage_size" {
+  description = "Storage size for Prometheus server"
+  type        = string
+  default     = "50Gi"
+}
+
+variable "prometheus_retention" {
+  description = "Data retention period for Prometheus"
+  type        = string
+  default     = "15d"
+}
+
+variable "grafana_storage_size" {
+  description = "Storage size for Grafana"
+  type        = string
+  default     = "10Gi"
+}
+
+variable "alertmanager_storage_size" {
+  description = "Storage size for AlertManager"
+  type        = string
+  default     = "5Gi"
+}
+
+variable "grafana_admin_password" {
+  description = "Admin password for Grafana"
+  type        = string
+  sensitive   = true
+  default     = "prom-operator" # Este valor debería ser reemplazado en producción
+}
+
+variable "enable_prometheus_ingress" {
+  description = "Enable Ingress for Prometheus stack components"
+  type        = bool
+  default     = false
+}
+
+# Validation rules
 locals {
+  # Ensure that both Karpenter and Cluster Autoscaler are not enabled simultaneously
   error_both_scalers = tobool(var.enable_karpenter && var.enable_cluster_autoscaler ?
   file("ERROR: You cannot enable both Karpenter and Cluster Autoscaler simultaneously as they would conflict with each other.") : true)
+
+  # Ensure that both Prometheus Stack and CloudWatch Observability are not enabled simultaneously
+  error_both_monitoring = tobool(var.enable_prometheus_stack && var.enable_cloudwatch_observability ?
+  file("ERROR: You cannot enable both Prometheus Stack and CloudWatch Observability simultaneously as they would conflict with each other.") : true)
+
+  # Validate storage sizes for Prometheus Stack
+  error_prometheus_storage = tobool(var.enable_prometheus_stack &&
+    (tonumber(regex("^(\\d+)Gi$", var.prometheus_storage_size)[0]) < 10 ||
+      tonumber(regex("^(\\d+)Gi$", var.grafana_storage_size)[0]) < 2 ||
+    tonumber(regex("^(\\d+)Gi$", var.alertmanager_storage_size)[0]) < 1) ?
+  file("ERROR: Storage sizes for Prometheus components are too small for reliable operation. Minimum recommended: prometheus_storage_size=10Gi, grafana_storage_size=2Gi, alertmanager_storage_size=1Gi") : true)
 }
