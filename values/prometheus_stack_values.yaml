@@ -1,0 +1,97 @@
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        cpu: "100m"
+        memory: "256Mi"
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "gp2"
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: "topology.kubernetes.io/zone"
+              labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: "In"
+                    values:
+                      - "alertmanager"
+grafana:
+  enabled: true
+  adminPassword: "prom-operator"
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "256Mi"
+    limits:
+      cpu: "100m"
+      memory: "512Mi"
+  persistence:
+    enabled: true
+    size: "5Gi"
+    storageClassName: "gp2"
+  ingress:
+    enabled: true
+    ingressClassName: "alb"
+    annotations:
+      kubernetes.io/ingress.class: "alb"
+      alb.ingress.kubernetes.io/scheme: "internet-facing"
+      alb.ingress.kubernetes.io/target-type: "ip"
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+prometheus:
+  enabled: true
+  prometheusSpec:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "512Mi"
+      limits:
+        cpu: "200m"
+        memory: "1Gi"
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          resources:
+            requests:
+              storage: "20Gi"
+          storageClassName: "gp2"
+    retention: "7d"
+    retentionSize: "85GB"
+    securityContext:
+      fsGroup: 65534
+      runAsNonRoot: true
+      runAsUser: 65534
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              topologyKey: "topology.kubernetes.io/zone"
+              labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: "In"
+                    values:
+                      - "prometheus"
+    tolerations:
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 300
+prometheusOperator:
+  replicas: 2
+  serviceMonitor:
+    enabled: true
+commonLabels:
+  environment: "prod"
+  managed-by: "terraform"
