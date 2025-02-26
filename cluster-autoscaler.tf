@@ -83,6 +83,7 @@ resource "helm_release" "cluster_autoscaler" {
   repository = "https://kubernetes.github.io/autoscaler"
   chart      = "cluster-autoscaler"
   namespace  = "kube-system"
+  version    = "9.34.0" # Especificar una versión estable
 
   set {
     name  = "autoDiscovery.clusterName"
@@ -144,5 +145,73 @@ resource "helm_release" "cluster_autoscaler" {
   set {
     name  = "readinessProbe.initialDelaySeconds"
     value = "30"
+  }
+
+  # Configuración importante para el autoscalado adecuado de nodos
+  set {
+    name  = "extraArgs.scale-down-delay-after-add"
+    value = "5m" # Retraso para reducir la escala después de añadir nodos
+  }
+
+  set {
+    name  = "extraArgs.scale-down-unneeded-time"
+    value = "5m" # Tiempo antes de considerar escalar hacia abajo
+  }
+
+  set {
+    name  = "extraArgs.max-node-provision-time"
+    value = "15m" # Máximo tiempo de espera para provisionar nodos
+  }
+
+  set {
+    name  = "extraArgs.balance-similar-node-groups"
+    value = "true" # Equilibrar grupos de nodos similares
+  }
+
+  set {
+    name  = "extraArgs.expander"
+    value = "least-waste" # Estrategia para elegir grupo de nodos cuando se escala
+  }
+
+  # Tolerations para permitir que el autoscaler se ejecute incluso en nodos con taints
+  set {
+    name  = "tolerations[0].key"
+    value = "node.kubernetes.io/not-ready"
+  }
+
+  set {
+    name  = "tolerations[0].operator"
+    value = "Exists"
+  }
+
+  set {
+    name  = "tolerations[0].effect"
+    value = "NoExecute"
+  }
+
+  set {
+    name  = "tolerations[0].tolerationSeconds"
+    value = "300"
+  }
+
+  # Tolerations para que funcione incluso durante problemas de nodo
+  set {
+    name  = "tolerations[1].key"
+    value = "node.kubernetes.io/unreachable"
+  }
+
+  set {
+    name  = "tolerations[1].operator"
+    value = "Exists"
+  }
+
+  set {
+    name  = "tolerations[1].effect"
+    value = "NoExecute"
+  }
+
+  set {
+    name  = "tolerations[1].tolerationSeconds"
+    value = "300"
   }
 }

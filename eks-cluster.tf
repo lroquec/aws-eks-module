@@ -36,6 +36,7 @@ module "eks" {
     var.enable_ebs_csi_driver ? {
       aws-ebs-csi-driver = {
         most_recent = true
+        preserve    = true
       }
     } : {},
     var.enable_cloudwatch_observability ? {
@@ -133,6 +134,25 @@ module "eks" {
           "k8s.io/cluster-autoscaler/node-template/resources/memory" = "4Gi"
         }
       )
+    }
+  }
+
+  node_security_group_additional_rules = {
+    ingress_self_all = {
+      description = "Node to node all ports/protocols"
+      protocol    = "-1"
+      from_port   = 0
+      to_port     = 0
+      type        = "ingress"
+      self        = true
+    }
+    egress_all = {
+      description = "Node all egress"
+      protocol    = "-1"
+      from_port   = 0
+      to_port     = 0
+      type        = "egress"
+      cidr_blocks = ["0.0.0.0/0"]
     }
   }
 
