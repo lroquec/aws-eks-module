@@ -33,7 +33,7 @@ This repository contains a Terraform module for deploying an Amazon EKS (Elastic
   - External DNS
   - Metrics Server
   - EBS CSI Driver
-  - Karpenter for node autoscaling
+  - Node Autoscaling (Karpenter or Cluster Autoscaler)
   - CloudWatch Observability
   - EFS CSI Driver
 
@@ -92,6 +92,7 @@ terraform apply
 ├── iam-users.tf           # IAM users management
 ├── eks-cluster.tf         # EKS cluster configuration
 ├── karpenter.tf           # Karpenter autoscaler
+├── cluster-autoscaler.tf  # Cluster Autoscaler
 ├── alb-controller.tf      # AWS Load Balancer Controller
 ├── external-dns.tf        # External DNS
 ├── metrics-server.tf      # Metrics Server
@@ -104,23 +105,38 @@ terraform apply
 
 ## Important Variables
 
-| Name                  | Description                       | Type   | Default            |
-| --------------------- | --------------------------------- | ------ | ------------------ |
-| cluster_name          | Name of the EKS cluster           | string | "test-eks-cluster" |
-| environment           | Environment name                  | string | "dev"              |
-| cluster_version       | Kubernetes version                | string | "1.32"             |
-| vpc_cidr              | CIDR block for VPC                | string | "10.0.0.0/16"      |
-| enable_karpenter      | Enable Karpenter node provisioner | bool   | false              |
-| enable_metrics_server | Enable metrics server             | bool   | true               |
+| Name                      | Description                       | Type   | Default            |
+| ------------------------- | --------------------------------- | ------ | ------------------ |
+| cluster_name              | Name of the EKS cluster           | string | "test-eks-cluster" |
+| environment               | Environment name                  | string | "dev"              |
+| cluster_version           | Kubernetes version                | string | "1.32"             |
+| vpc_cidr                  | CIDR block for VPC                | string | "10.0.0.0/16"      |
+| enable_karpenter          | Enable Karpenter node provisioner | bool   | false              |
+| enable_cluster_autoscaler | Enable Cluster Autoscaler         | bool   | false              |
+| enable_metrics_server     | Enable metrics server             | bool   | true               |
 
 ## Add-ons Configuration
 
-### Karpenter
+### Node Autoscaling
 
-Enables automatic node provisioning and scaling:
+You can choose between two autoscaling solutions, but you cannot enable both simultaneously:
+
+#### Karpenter
+
+Enables modern and efficient node provisioning:
 
 ```hcl
 enable_karpenter = true
+enable_cluster_autoscaler = false  # Must be false when Karpenter is enabled
+```
+
+#### Cluster Autoscaler
+
+Traditional node group scaling:
+
+```hcl
+enable_cluster_autoscaler = true
+enable_karpenter = false  # Must be false when Cluster Autoscaler is enabled
 ```
 
 ### Load Balancer Controller
@@ -173,7 +189,7 @@ developer_users       = ["dev1", "dev2"]
 
 3. **Scalability**
 
-   - Karpenter for efficient node scaling
+   - Choice between Karpenter or Cluster Autoscaler for node scaling
    - Support for multiple node groups
    - Configurable auto-scaling settings
 
@@ -181,6 +197,7 @@ developer_users       = ["dev1", "dev2"]
 
    - Consistent variable naming
    - Consistent tagging
+   - Validation checks to prevent conflicting configurations
    - Clear variable organization
    - Comprehensive documentation
 
