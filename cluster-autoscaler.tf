@@ -76,14 +76,19 @@ resource "null_resource" "version_validation" {
 }
 
 resource "helm_release" "cluster_autoscaler" {
-  count      = var.enable_cluster_autoscaler ? 1 : 0
-  depends_on = [null_resource.version_validation, time_sleep.wait_for_cluster]
+  count = var.enable_cluster_autoscaler ? 1 : 0
+  depends_on = [
+    null_resource.version_validation, 
+    time_sleep.wait_for_cluster,
+    time_sleep.wait_for_alb_controller
+  ]
 
   name       = "cluster-autoscaler"
   repository = "https://kubernetes.github.io/autoscaler"
   chart      = "cluster-autoscaler"
   namespace  = "kube-system"
   version    = "9.34.0" # Especificar una versión estable
+  timeout    = 600      # Aumentar timeout para evitar fallos durante instalación
 
   set {
     name  = "autoDiscovery.clusterName"
@@ -213,5 +218,15 @@ resource "helm_release" "cluster_autoscaler" {
   set {
     name  = "tolerations[1].tolerationSeconds"
     value = "300"
+  }
+  
+  # Configuración de reintentos para mejorar la fiabilidad
+  set {
+    name  = "awsRegion"
+    value = var.aws_region
+  }
+
+  lifecycle {
+    create_before_destroy = true
   }
 }

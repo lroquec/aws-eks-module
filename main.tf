@@ -16,12 +16,37 @@ locals {
   )
 }
 
-# Wait for EKS cluster to be ready before proceeding with add-ons
-resource "null_resource" "wait_for_cluster" {
-  depends_on = [module.eks]
-}
-
+# Una mejor implementación de espera para que el cluster esté disponible
 resource "time_sleep" "wait_for_cluster" {
   depends_on      = [module.eks]
-  create_duration = "30s"
+  create_duration = "90s"
+  
+  triggers = {
+    cluster_endpoint = module.eks.cluster_endpoint
+  }
+}
+
+# Función para verificar que el cluster está realmente listo
+resource "null_resource" "check_cluster_readiness" {
+  depends_on = [time_sleep.wait_for_cluster]
+
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    command     = <<-EOT
+      echo "Verificando disponibilidad del cluster EKS..."
+      
+      # Configurar kubectl
+      aws eks update-kubeconfig --name ${module.eks.cluster_name} --region ${var.aws_region}
+      
+      # Esperar hasta que los nodos estén Ready
+      echo "Esperando a que los nodos estén disponibles..."
+      kubectl wait --for=condition=Ready nodes --all --timeout=300s
+      
+      # Verificar que kube-system pods están en ejecución
+      echo "Verificando pods del sistema..."
+      kubectl wait --for=condition=Ready pods --all -n kube-system --timeout=300s
+      
+      echo "Cluster EKS disponible y listo para usar"
+    EOT
+  }
 }

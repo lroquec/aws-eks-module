@@ -252,6 +252,11 @@ resource "helm_release" "prometheus_stack" {
     value = var.grafana_admin_password
   }
 
+  set {
+    name  = "grafana.ingress.annotations.alb\\.ingress\\.kubernetes\\.io/target-port"
+    value = "\"3000\""
+  }
+
   # Ingress configuration if needed
   dynamic "set" {
     for_each = var.enable_prometheus_ingress ? [1] : []
