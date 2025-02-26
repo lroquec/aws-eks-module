@@ -7,6 +7,7 @@ resource "helm_release" "prometheus_stack" {
   chart            = "kube-prometheus-stack"
   namespace        = "monitoring"
   create_namespace = true
+  # No version specified to always use the latest available
 
   set {
     name  = "grafana.enabled"
@@ -23,6 +24,7 @@ resource "helm_release" "prometheus_stack" {
     value = "true"
   }
 
+  # Resource configuration to avoid excessive usage in test environments
   set {
     name  = "prometheus.prometheusSpec.resources.requests.cpu"
     value = "100m"
@@ -43,6 +45,7 @@ resource "helm_release" "prometheus_stack" {
     value = "1Gi"
   }
 
+  # Grafana configuration
   set {
     name  = "grafana.resources.requests.cpu"
     value = "50m"
@@ -63,6 +66,7 @@ resource "helm_release" "prometheus_stack" {
     value = "512Mi"
   }
 
+  # AlertManager configuration
   set {
     name  = "alertmanager.resources.requests.cpu"
     value = "50m"
@@ -83,9 +87,16 @@ resource "helm_release" "prometheus_stack" {
     value = "256Mi"
   }
 
+  # Storage configuration for production environments
   set {
     name  = "prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage"
     value = var.prometheus_storage_size
+  }
+
+  # Add deletion policy to ensure PVCs are removed with terraform destroy
+  set {
+    name  = "prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.persistentVolumeReclaimPolicy"
+    value = "Delete"
   }
 
   set {
@@ -103,16 +114,30 @@ resource "helm_release" "prometheus_stack" {
     value = var.grafana_storage_size
   }
 
+  # Add deletion annotation for Grafana PVC
+  set {
+    name  = "grafana.persistence.annotations.\"helm\\.sh/resource-policy\""
+    value = "delete"
+  }
+
   set {
     name  = "alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage"
     value = var.alertmanager_storage_size
   }
 
+  # Add deletion policy for AlertManager PVC
+  set {
+    name  = "alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.persistentVolumeReclaimPolicy"
+    value = "Delete"
+  }
+
+  # ServiceMonitor configuration
   set {
     name  = "prometheusOperator.serviceMonitor.enabled"
     value = "true"
   }
 
+  # Security configuration for production
   set {
     name  = "prometheus.prometheusSpec.securityContext.fsGroup"
     value = "65534"
@@ -128,6 +153,7 @@ resource "helm_release" "prometheus_stack" {
     value = "65534"
   }
 
+  # High availability configuration for production
   set {
     name  = "prometheusOperator.replicas"
     value = var.environment == "prod" ? "2" : "1"
@@ -143,16 +169,19 @@ resource "helm_release" "prometheus_stack" {
     value = var.environment == "prod" ? "2" : "1"
   }
 
+  # Metric retention configuration based on size and time
   set {
     name  = "prometheus.prometheusSpec.retentionSize"
     value = var.environment == "prod" ? "85%" : "75%"
   }
 
+  # Grafana configuration 
   set {
     name  = "grafana.adminPassword"
     value = var.grafana_admin_password
   }
 
+  # Ingress configuration if needed
   dynamic "set" {
     for_each = var.enable_prometheus_ingress ? [1] : []
     content {
@@ -169,6 +198,7 @@ resource "helm_release" "prometheus_stack" {
     }
   }
 
+  # Labels for all resources
   set {
     name  = "commonLabels.environment"
     value = var.environment
@@ -182,6 +212,7 @@ resource "helm_release" "prometheus_stack" {
   depends_on = [module.eks, time_sleep.wait_for_cluster]
 }
 
+# Custom Prometheus Alert Rules (applied only if prometheus-stack is enabled)
 resource "kubectl_manifest" "prometheus_alert_rules" {
   count     = var.enable_prometheus_stack ? 1 : 0
   yaml_body = file("${path.module}/policies/prometheus-alerts.yaml")
