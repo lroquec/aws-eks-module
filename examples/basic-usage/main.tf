@@ -82,7 +82,8 @@ module "eks" {
   accountable = "devops team"
   git_repo    = "https://github.com/company/ecommerce-platform"
 
-  enable_ebs_csi_driver = true
-  enable_karpenter      = true
+  enable_ebs_csi_driver     = true
+  enable_karpenter          = false
+  enable_cluster_autoscaler = true
 
 }
