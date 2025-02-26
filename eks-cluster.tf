@@ -112,7 +112,7 @@ module "eks" {
   eks_managed_node_groups = {
     main = {
       min_size     = 1
-      max_size     = 1
+      max_size     = 5
       desired_size = 1
 
       instance_types = ["t3.medium"]
@@ -124,7 +124,15 @@ module "eks" {
         Purpose     = "bootstrap"
       }
 
-      tags = local.common_tags
+      tags = merge(
+        local.common_tags,
+        {
+          "k8s.io/cluster-autoscaler/enabled"                        = "true"
+          "k8s.io/cluster-autoscaler/${var.cluster_name}"            = "owned"
+          "k8s.io/cluster-autoscaler/node-template/resources/cpu"    = "2"
+          "k8s.io/cluster-autoscaler/node-template/resources/memory" = "4Gi"
+        }
+      )
     }
   }
 
