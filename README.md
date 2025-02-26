@@ -34,7 +34,7 @@ This repository contains a Terraform module for deploying an Amazon EKS (Elastic
   - Metrics Server
   - EBS CSI Driver
   - Node Autoscaling (Karpenter or Cluster Autoscaler)
-  - CloudWatch Observability
+  - Monitoring (Prometheus Stack or CloudWatch Observability)
   - EFS CSI Driver
 
 ## Prerequisites
