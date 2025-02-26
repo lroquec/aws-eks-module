@@ -9,7 +9,14 @@ resource "helm_release" "prometheus_stack" {
   force_update = true
 
   values = [
-    file("${path.module}/values/prometheus_stack_values.yaml")
+    templatefile("${path.module}/values/prometheus_stack_values.yaml.tpl", {
+      grafana_admin_password    = var.grafana_admin_password
+      enable_prometheus_ingress = var.enable_prometheus_ingress
+      prometheus_storage_size   = var.prometheus_storage_size
+      prometheus_retention      = var.prometheus_retention
+      grafana_storage_size      = var.grafana_storage_size
+      alertmanager_storage_size = var.alertmanager_storage_size
+    })
   ]
 
   depends_on = [

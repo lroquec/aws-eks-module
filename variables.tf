@@ -178,13 +178,13 @@ variable "grafana_admin_password" {
   description = "Admin password for Grafana"
   type        = string
   sensitive   = true
-  default     = "prom-operator" # Este valor debería ser reemplazado en producción
+  default     = "prom-operator"
 }
 
 variable "enable_prometheus_ingress" {
   description = "Enable Ingress for Prometheus stack components"
   type        = bool
-  default     = true
+  default     = false
 }
 
 # Validation rules

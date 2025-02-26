@@ -12,6 +12,9 @@ alertmanager:
     storage:
       volumeClaimTemplate:
         spec:
+          resources:
+            requests:
+              storage: "${alertmanager_storage_size}"
           storageClassName: "gp2"
     affinity:
       podAntiAffinity:
@@ -27,7 +30,7 @@ alertmanager:
                       - "alertmanager"
 grafana:
   enabled: true
-  adminPassword: "prom-operator"
+  adminPassword: "${grafana_admin_password}"
   resources:
     requests:
       cpu: "50m"
@@ -37,10 +40,10 @@ grafana:
       memory: "512Mi"
   persistence:
     enabled: true
-    size: "5Gi"
+    size: "${grafana_storage_size}"
     storageClassName: "gp2"
   ingress:
-    enabled: true
+    enabled: ${enable_prometheus_ingress}
     ingressClassName: "alb"
     annotations:
       kubernetes.io/ingress.class: "alb"
@@ -63,9 +66,9 @@ prometheus:
         spec:
           resources:
             requests:
-              storage: "20Gi"
+              storage: "${prometheus_storage_size}"
           storageClassName: "gp2"
-    retention: "7d"
+    retention: "${prometheus_retention}"
     retentionSize: "85GB"
     securityContext:
       fsGroup: 65534
