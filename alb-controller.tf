@@ -57,6 +57,6 @@ resource "helm_release" "aws_load_balancer_controller" {
     name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
     value = aws_iam_role.aws_load_balancer_controller[0].arn
   }
-  
+
   depends_on = [module.eks, time_sleep.wait_for_cluster]
 }

@@ -137,3 +137,15 @@ variable "karpenter_version" {
   type        = string
   default     = "1.2.1"
 }
+
+variable "enable_cluster_autoscaler" {
+  description = "Enable Cluster Autoscaler"
+  type        = bool
+  default     = false
+}
+
+# Validation rule to ensure that both Karpenter and Cluster Autoscaler are not enabled simultaneously
+locals {
+  error_both_scalers = tobool(var.enable_karpenter && var.enable_cluster_autoscaler ?
+  file("ERROR: You cannot enable both Karpenter and Cluster Autoscaler simultaneously as they would conflict with each other.") : true)
+}

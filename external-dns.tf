@@ -57,6 +57,6 @@ resource "helm_release" "external_dns" {
     name  = "provider"
     value = "aws"
   }
-  
+
   depends_on = [module.eks, time_sleep.wait_for_cluster]
 }
