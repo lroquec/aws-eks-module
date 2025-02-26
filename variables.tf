@@ -184,7 +184,7 @@ variable "grafana_admin_password" {
 variable "enable_prometheus_ingress" {
   description = "Enable Ingress for Prometheus stack components"
   type        = bool
-  default     = false
+  default     = true
 }
 
 # Validation rules

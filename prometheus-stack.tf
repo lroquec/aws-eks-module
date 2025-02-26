@@ -92,39 +92,39 @@ resource "helm_release" "prometheus_stack" {
     name  = "prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.resources.requests.storage"
     value = var.prometheus_storage_size
   }
-
+  
   # Add deletion policy to ensure PVCs are removed with terraform destroy
   set {
     name  = "prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.persistentVolumeReclaimPolicy"
     value = "Delete"
   }
-
+  
   set {
     name  = "prometheus.prometheusSpec.retention"
     value = var.prometheus_retention
   }
-
+  
   set {
     name  = "grafana.persistence.enabled"
     value = "true"
   }
-
+  
   set {
     name  = "grafana.persistence.size"
     value = var.grafana_storage_size
   }
-
+  
   # Add deletion annotation for Grafana PVC
   set {
-    name  = "grafana.persistence.annotations.\"helm\\.sh/resource-policy\""
+    name  = "grafana.persistence.annotations.helm\\.sh/resource-policy"
     value = "delete"
   }
-
+  
   set {
     name  = "alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.resources.requests.storage"
     value = var.alertmanager_storage_size
   }
-
+  
   # Add deletion policy for AlertManager PVC
   set {
     name  = "alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.persistentVolumeReclaimPolicy"
@@ -136,51 +136,51 @@ resource "helm_release" "prometheus_stack" {
     name  = "prometheusOperator.serviceMonitor.enabled"
     value = "true"
   }
-
+  
   # Security configuration for production
   set {
     name  = "prometheus.prometheusSpec.securityContext.fsGroup"
     value = "65534"
   }
-
+  
   set {
     name  = "prometheus.prometheusSpec.securityContext.runAsNonRoot"
     value = "true"
   }
-
+  
   set {
     name  = "prometheus.prometheusSpec.securityContext.runAsUser"
     value = "65534"
   }
-
+  
   # High availability configuration for production
   set {
     name  = "prometheusOperator.replicas"
     value = var.environment == "prod" ? "2" : "1"
   }
-
+  
   set {
     name  = "prometheus.prometheusSpec.replicas"
     value = var.environment == "prod" ? "2" : "1"
   }
-
+  
   set {
     name  = "alertmanager.alertmanagerSpec.replicas"
     value = var.environment == "prod" ? "2" : "1"
   }
-
+  
   # Metric retention configuration based on size and time
   set {
     name  = "prometheus.prometheusSpec.retentionSize"
-    value = var.environment == "prod" ? "85%" : "75%"
+    value = var.environment == "prod" ? "85GB" : "30GB"
   }
-
+  
   # Grafana configuration 
   set {
     name  = "grafana.adminPassword"
     value = var.grafana_admin_password
   }
-
+  
   # Ingress configuration if needed
   dynamic "set" {
     for_each = var.enable_prometheus_ingress ? [1] : []
@@ -189,34 +189,49 @@ resource "helm_release" "prometheus_stack" {
       value = "true"
     }
   }
-
+  
   dynamic "set" {
     for_each = var.enable_prometheus_ingress ? [1] : []
     content {
-      name  = "grafana.ingress.ingressClassName"
+      name  = "grafana.ingress.ingressClassName" 
       value = "alb"
     }
   }
-
+  
   # Labels for all resources
   set {
     name  = "commonLabels.environment"
     value = var.environment
   }
-
+  
   set {
     name  = "commonLabels.managed-by"
     value = "terraform"
   }
 
-  depends_on = [module.eks, time_sleep.wait_for_cluster]
+  set {
+    name  = "prometheus.prometheusSpec.storageSpec.volumeClaimTemplate.spec.storageClassName"
+    value = "gp2-immediate"
+  }
+
+  set {
+    name  = "grafana.persistence.storageClassName"
+    value = "gp2-immediate"
+  }
+
+  set {
+    name  = "alertmanager.alertmanagerSpec.storage.volumeClaimTemplate.spec.storageClassName"
+    value = "gp2-immediate"
+  }
+
+  depends_on = [module.eks, time_sleep.wait_for_cluster, kubectl_manifest.gp2_immediate]
 }
 
 # Custom Prometheus Alert Rules (applied only if prometheus-stack is enabled)
 resource "kubectl_manifest" "prometheus_alert_rules" {
   count     = var.enable_prometheus_stack ? 1 : 0
   yaml_body = file("${path.module}/policies/prometheus-alerts.yaml")
-
+  
   depends_on = [
     helm_release.prometheus_stack
   ]
