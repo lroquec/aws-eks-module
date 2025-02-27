@@ -58,7 +58,7 @@ resource "helm_release" "aws_load_balancer_controller" {
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"
   namespace  = "kube-system"
-  version    = "1.6.2"  # Especificar una versión estable
+  version    = "1.6.2" # Especificar una versión estable
 
   set {
     name  = "clusterName"
@@ -101,7 +101,7 @@ resource "helm_release" "aws_load_balancer_controller" {
   timeout = 600
 
   depends_on = [
-    module.eks, 
+    module.eks,
     time_sleep.wait_for_cluster,
     null_resource.check_kube_system,
     aws_iam_role_policy_attachment.aws_load_balancer_controller

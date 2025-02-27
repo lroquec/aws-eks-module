@@ -78,7 +78,7 @@ resource "null_resource" "version_validation" {
 resource "helm_release" "cluster_autoscaler" {
   count = var.enable_cluster_autoscaler ? 1 : 0
   depends_on = [
-    null_resource.version_validation, 
+    null_resource.version_validation,
     time_sleep.wait_for_cluster,
     time_sleep.wait_for_alb_controller
   ]
@@ -219,7 +219,7 @@ resource "helm_release" "cluster_autoscaler" {
     name  = "tolerations[1].tolerationSeconds"
     value = "300"
   }
-  
+
   # Configuración de reintentos para mejorar la fiabilidad
   set {
     name  = "awsRegion"
