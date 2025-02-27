@@ -84,4 +84,23 @@ module "eks" {
 
   enable_ebs_csi_driver = true
 
+  # Auto Scaling Configuration (just one can be enabled)
+  enable_karpenter          = true
+  enable_cluster_autoscaler = false
+
+  # Monitoring and Observability  (just one can be enabled)
+  enable_prometheus_stack         = true
+  enable_cloudwatch_observability = false
+
+  # Prometheus Stack Configuration
+  prometheus_storage_size   = "20Gi"
+  prometheus_retention      = "7d"
+  grafana_storage_size      = "5Gi"
+  alertmanager_storage_size = "2Gi"
+
+  # For production use, use a secure password
+  enable_grafana_ingress = true
+  grafana_admin_password = var.grafana_admin_password
+  grafana_ingress_host   = var.grafana_ingress_host
+
 }
