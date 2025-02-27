@@ -190,6 +190,7 @@ variable "enable_grafana_ingress" {
 variable "grafana_ingress_host" {
   description = "The host for the Grafana ingress"
   type        = string
+  default     = "grafana.example.com"
 }
 
 # Validation rules
