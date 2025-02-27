@@ -85,8 +85,8 @@ module "eks" {
   enable_ebs_csi_driver = true
 
   # Auto Scaling Configuration (just one can be enabled)
-  enable_karpenter          = false
-  enable_cluster_autoscaler = true
+  enable_karpenter          = true
+  enable_cluster_autoscaler = false
 
   # Monitoring and Observability  (just one can be enabled)
   enable_prometheus_stack         = true
