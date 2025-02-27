@@ -49,12 +49,12 @@ resource "kubernetes_ingress" "grafana_ingress" {
     name      = "grafana-ingress"
     namespace = "monitoring"
     annotations = {
-      "kubernetes.io/ingress.class"            = "alb"
-      "alb.ingress.kubernetes.io/scheme"       = "internet-facing"
-      "alb.ingress.kubernetes.io/target-type"  = "ip"
-      "alb.ingress.kubernetes.io/listen-ports" = jsonencode([{  "HTTPS":443  }, {  "HTTP" : 80  }])
+      "kubernetes.io/ingress.class"               = "alb"
+      "alb.ingress.kubernetes.io/scheme"          = "internet-facing"
+      "alb.ingress.kubernetes.io/target-type"     = "ip"
+      "alb.ingress.kubernetes.io/listen-ports"    = jsonencode([{ "HTTPS" : 443 }, { "HTTP" : 80 }])
       "alb.ingress.kubernetes.io/certificate-arn" = "arn:aws:acm:us-east-1:010526263844:certificate/99aa29a8-9b69-461e-9802-1dc8acd5a004"
-      "alb.ingress.kubernetes.io/ssl-redirect" = "443"
+      "alb.ingress.kubernetes.io/ssl-redirect"    = "443"
       "external-dns.alpha.kubernetes.io/hostname" = var.grafana_ingress_host
     }
   }
