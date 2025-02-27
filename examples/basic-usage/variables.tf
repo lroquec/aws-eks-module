@@ -1,7 +1,7 @@
 variable "grafana_admin_password" {
   description = "Admin password for Grafana"
   type        = string
-  default = "prom-operator"
+  default     = "prom-operator"
 }
 
 variable "grafana_ingress_host" {
