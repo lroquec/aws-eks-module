@@ -11,7 +11,6 @@ resource "helm_release" "prometheus_stack" {
   values = [
     templatefile("${path.module}/values/prometheus_stack_values.yaml.tpl", {
       grafana_admin_password    = var.grafana_admin_password
-      enable_prometheus_ingress = var.enable_prometheus_ingress
       prometheus_storage_size   = var.prometheus_storage_size
       prometheus_retention      = var.prometheus_retention
       grafana_storage_size      = var.grafana_storage_size
@@ -27,12 +26,51 @@ resource "helm_release" "prometheus_stack" {
   lifecycle {
     create_before_destroy = true
   }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = "kubectl delete pvc -n monitoring -l app.kubernetes.io/instance=prometheus-stack --ignore-not-found=true || true"
+  }
 }
 
 # Custom Prometheus Alert Rules (applied only if prometheus-stack is enabled)
 resource "kubectl_manifest" "prometheus_alert_rules" {
   count     = var.enable_prometheus_stack ? 1 : 0
   yaml_body = file("${path.module}/policies/prometheus-alerts.yaml")
+
+  depends_on = [
+    helm_release.prometheus_stack
+  ]
+}
+
+resource "kubernetes_ingress" "grafana_ingress" {
+  count = var.enable_grafana_ingress ? 1 : 0
+  metadata {
+    name      = "grafana-ingress"
+    namespace = "monitoring"
+    annotations = {
+      "kubernetes.io/ingress.class"            = "alb"
+      "alb.ingress.kubernetes.io/scheme"       = "internet-facing"
+      "alb.ingress.kubernetes.io/target-type"  = "ip"
+      "alb.ingress.kubernetes.io/listen-ports" = jsonencode([{ "HTTP" : 80 }])
+    }
+  }
+
+  spec {
+    rule {
+      host = var.grafana_ingress_host
+
+      http {
+        path {
+          path = "/"
+          backend {
+            service_name = "prometheus-stack-grafana"
+            service_port = 80
+          }
+        }
+      }
+    }
+  }
 
   depends_on = [
     helm_release.prometheus_stack

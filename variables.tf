@@ -181,10 +181,15 @@ variable "grafana_admin_password" {
   default     = "prom-operator"
 }
 
-variable "enable_prometheus_ingress" {
-  description = "Enable Ingress for Prometheus stack components"
+variable "enable_grafana_ingress" {
+  description = "Enable Ingress for Grafana dashboard"
   type        = bool
   default     = false
+}
+
+variable "grafana_ingress_host" {
+  description = "The host for the Grafana ingress"
+  type        = string
 }
 
 # Validation rules

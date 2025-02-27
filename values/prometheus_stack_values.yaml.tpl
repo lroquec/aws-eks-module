@@ -1,7 +1,7 @@
 alertmanager:
   enabled: true
   alertmanagerSpec:
-    replicas: 2
+    replicas: 1
     resources:
       requests:
         cpu: "50m"
@@ -43,17 +43,11 @@ grafana:
     size: "${grafana_storage_size}"
     storageClassName: "gp2"
   ingress:
-    enabled: ${enable_prometheus_ingress}
-    ingressClassName: "alb"
-    annotations:
-      kubernetes.io/ingress.class: "alb"
-      alb.ingress.kubernetes.io/scheme: "internet-facing"
-      alb.ingress.kubernetes.io/target-type: "ip"
-      alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    enabled: false
 prometheus:
   enabled: true
   prometheusSpec:
-    replicas: 2
+    replicas: 1
     resources:
       requests:
         cpu: "100m"
@@ -69,7 +63,7 @@ prometheus:
               storage: "${prometheus_storage_size}"
           storageClassName: "gp2"
     retention: "${prometheus_retention}"
-    retentionSize: "85GB"
+    retentionSize: "20GB"
     securityContext:
       fsGroup: 65534
       runAsNonRoot: true
@@ -92,7 +86,7 @@ prometheus:
         effect: "NoExecute"
         tolerationSeconds: 300
 prometheusOperator:
-  replicas: 2
+  replicas: 1
   serviceMonitor:
     enabled: true
 commonLabels:

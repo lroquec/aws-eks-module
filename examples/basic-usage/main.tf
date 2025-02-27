@@ -99,7 +99,8 @@ module "eks" {
   alertmanager_storage_size = "2Gi"
 
   # For production use, use a secure password
-  # enable_prometheus_ingress   = true
-  # grafana_admin_password      = var.grafana_admin_password
+  enable_grafana_ingress = true
+  grafana_admin_password = var.grafana_admin_password
+  grafana_ingress_host   = var.grafana_ingress_host
 
 }
