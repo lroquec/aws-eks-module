@@ -64,13 +64,15 @@ resource "kubernetes_ingress_v1" "grafana_ingress" {
       "alb.ingress.kubernetes.io/certificate-arn" = "arn:aws:acm:us-east-1:010526263844:certificate/99aa29a8-9b69-461e-9802-1dc8acd5a004"
       "alb.ingress.kubernetes.io/ssl-redirect"    = "443"
       "external-dns.alpha.kubernetes.io/hostname" = var.grafana_ingress_host
+      "alb.ingress.kubernetes.io/success-codes"   = "200,302"  # Añadido para manejar redirecciones
+      "alb.ingress.kubernetes.io/healthcheck-path" = "/login"  # Ruta específica de healthcheck para Grafana
+      "alb.ingress.kubernetes.io/load-balancer-attributes" = "idle_timeout.timeout_seconds=60"
     }
   }
 
   spec {
     rule {
-      host = var.grafana_ingress_host
-
+      # No especificar host permite que funcione con cualquier nombre de host
       http {
         path {
           path      = "/"
