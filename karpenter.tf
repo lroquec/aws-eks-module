@@ -134,7 +134,7 @@ resource "helm_release" "karpenter" {
     value = "1"
   }
 
-  depends_on = [time_sleep.wait_for_cluster]
+  depends_on = [time_sleep.wait_for_cluster, module.eks]
 }
 
 # Wait till CRDs are installed
