@@ -36,6 +36,7 @@ This repository contains a Terraform module for deploying an Amazon EKS (Elastic
   - Node Autoscaling (Karpenter or Cluster Autoscaler)
   - Monitoring (Prometheus Stack or CloudWatch Observability)
   - EFS CSI Driver
+  - Prometheus Stack with Grafana dashboards and alerts
 
 ## Prerequisites
 
@@ -96,24 +97,38 @@ terraform apply
 ├── alb-controller.tf      # AWS Load Balancer Controller
 ├── external-dns.tf        # External DNS
 ├── metrics-server.tf      # Metrics Server
+├── prometheus-stack.tf    # Prometheus monitoring stack
 ├── policies/              # IAM policy JSON files
 │   ├── aws-load-balancer-controller-policy.json
-│   └── external-dns-policy.json
+│   ├── external-dns-policy.json
+│   └── prometheus-alerts.yaml
+├── values/                # Helm values template files
+│   └── prometheus_stack_values.yaml.tpl
 └── examples/              # Example configurations
-    └── basic-usage/       # Basic cluster setup
+│   ├── basic-usage        # Minimum configuration
+│   └── complete           # Install and configure also addons
+
 ```
 
 ## Important Variables
 
-| Name                      | Description                       | Type   | Default            |
-| ------------------------- | --------------------------------- | ------ | ------------------ |
-| cluster_name              | Name of the EKS cluster           | string | "test-eks-cluster" |
-| environment               | Environment name                  | string | "dev"              |
-| cluster_version           | Kubernetes version                | string | "1.32"             |
-| vpc_cidr                  | CIDR block for VPC                | string | "10.0.0.0/16"      |
-| enable_karpenter          | Enable Karpenter node provisioner | bool   | false              |
-| enable_cluster_autoscaler | Enable Cluster Autoscaler         | bool   | false              |
-| enable_metrics_server     | Enable metrics server             | bool   | true               |
+| Name                      | Description                          | Type   | Default            |
+| ------------------------- | ------------------------------------ | ------ | ------------------ |
+| cluster_name              | Name of the EKS cluster              | string | "test-eks-cluster" |
+| environment               | Environment name                     | string | "dev"              |
+| cluster_version           | Kubernetes version                   | string | "1.32"             |
+| vpc_cidr                  | CIDR block for VPC                   | string | "10.0.0.0/16"      |
+| enable_karpenter          | Enable Karpenter node provisioner    | bool   | false              |
+| enable_cluster_autoscaler | Enable Cluster Autoscaler            | bool   | false              |
+| enable_metrics_server     | Enable metrics server                | bool   | true               |
+| enable_prometheus_stack   | Enable Prometheus monitoring stack   | bool   | false              |
+| grafana_admin_password    | Password for Grafana admin user      | string | ""                 |
+| prometheus_storage_size   | Storage size for Prometheus          | string | "10Gi"             |
+| prometheus_retention      | Data retention period for Prometheus | string | "10d"              |
+| grafana_storage_size      | Storage size for Grafana             | string | "5Gi"              |
+| alertmanager_storage_size | Storage size for Alertmanager        | string | "5Gi"              |
+| enable_grafana_ingress    | Enable ALB ingress for Grafana       | bool   | false              |
+| grafana_ingress_host      | Hostname for Grafana ingress         | string | ""                 |
 
 ## Add-ons Configuration
 
@@ -154,6 +169,32 @@ For automatic DNS management:
 ```hcl
 enable_external_dns = true
 ```
+
+### Prometheus Stack
+
+For comprehensive monitoring, metrics and alerting:
+
+```hcl
+enable_prometheus_stack = true
+prometheus_storage_size = "20Gi"
+prometheus_retention = "15d"
+grafana_admin_password = "YourStrongPassword"
+```
+
+To expose Grafana via an AWS Load Balancer:
+
+```hcl
+enable_grafana_ingress = true
+grafana_ingress_host = "grafana.example.com"
+```
+
+The Prometheus Stack includes:
+
+- Prometheus server for metrics collection
+- Alertmanager for alert handling
+- Grafana for visualization
+- Custom alert rules
+- Persistent storage for metrics data
 
 ## IAM Role Configuration
 
