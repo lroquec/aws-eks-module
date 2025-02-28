@@ -16,7 +16,6 @@ locals {
   )
 }
 
-# Una mejor implementación de espera para que el cluster esté disponible
 resource "time_sleep" "wait_for_cluster" {
   depends_on      = [module.eks]
   create_duration = "90s"
@@ -26,7 +25,6 @@ resource "time_sleep" "wait_for_cluster" {
   }
 }
 
-# Función para verificar que el cluster está realmente listo
 resource "null_resource" "check_cluster_readiness" {
   depends_on = [time_sleep.wait_for_cluster]
 

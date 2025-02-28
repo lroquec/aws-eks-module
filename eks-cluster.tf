@@ -13,6 +13,11 @@ module "eks" {
     "karpenter.sh/discovery" = var.cluster_name
   }
 
+  node_security_group_tags = {
+    "karpenter.sh/discovery" = var.cluster_name
+  }
+
+
   cluster_enabled_log_types = [
     "audit",
     "api",
@@ -36,7 +41,7 @@ module "eks" {
     var.enable_ebs_csi_driver ? {
       aws-ebs-csi-driver = {
         most_recent = true
-        preserve    = true
+        preserve    = false
       }
     } : {},
     var.enable_cloudwatch_observability ? {
@@ -125,9 +130,10 @@ module "eks" {
         Purpose     = "bootstrap"
       }
 
+      # Use conditional tags based on enable_karpenter
       tags = merge(
         local.common_tags,
-        {
+        var.enable_karpenter ? {} : {
           "k8s.io/cluster-autoscaler/enabled"                        = "true"
           "k8s.io/cluster-autoscaler/${var.cluster_name}"            = "owned"
           "k8s.io/cluster-autoscaler/node-template/resources/cpu"    = "2"

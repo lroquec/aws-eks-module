@@ -1,6 +1,7 @@
 alertmanager:
   enabled: true
   alertmanagerSpec:
+    podManagementPolicy: Parallel
     replicas: 1
     resources:
       requests:
@@ -47,6 +48,7 @@ grafana:
 prometheus:
   enabled: true
   prometheusSpec:
+    podManagementPolicy: Parallel
     replicas: 1
     resources:
       requests:
@@ -85,6 +87,9 @@ prometheus:
         operator: "Exists"
         effect: "NoExecute"
         tolerationSeconds: 300
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoSchedule"
 prometheusOperator:
   replicas: 1
   serviceMonitor:

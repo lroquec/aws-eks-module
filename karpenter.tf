@@ -65,7 +65,10 @@ resource "aws_iam_role_policy" "karpenter_controller" {
           "ec2:AuthorizeSecurityGroupIngress",
           "ec2:RevokeSecurityGroupIngress",
           "iam:CreateServiceLinkedRole",
-          "ec2:DeleteLaunchTemplate"
+          "ec2:DeleteLaunchTemplate",
+          "ec2:DescribeInstanceStatus",
+          "eks:UpdateNodegroupConfig",
+          "eks:DescribeNodegroup"
         ]
         Resource = "*"
       },
@@ -80,38 +83,10 @@ resource "aws_iam_role_policy" "karpenter_controller" {
   })
 }
 
-# Create Karpenter node IAM role
-resource "aws_iam_role" "karpenter_node" {
-  count = var.enable_karpenter ? 1 : 0
-  name  = "${var.cluster_name}-karpenter-node"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action = "sts:AssumeRole"
-        Effect = "Allow"
-        Principal = {
-          Service = "ec2.amazonaws.com"
-        }
-      }
-    ]
-  })
-
-  tags = local.common_tags
+data "aws_iam_role" "nodegroup_role" {
+  name = module.eks.eks_managed_node_groups["main"].iam_role_name
 }
 
-resource "aws_iam_role_policy_attachment" "karpenter_node_policies" {
-  for_each = var.enable_karpenter ? toset([
-    "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy",
-    "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy",
-    "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly",
-    "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-  ]) : []
-
-  policy_arn = each.value
-  role       = aws_iam_role.karpenter_node[0].name
-}
 
 # Deploy Karpenter 
 resource "helm_release" "karpenter" {
@@ -185,7 +160,7 @@ metadata:
   name: default
 spec:
   amiFamily: AL2
-  role: "${aws_iam_role.karpenter_node[0].name}"
+  role: "${data.aws_iam_role.nodegroup_role.name}"
   subnetSelectorTerms:
     - tags:
         kubernetes.io/role: private
@@ -197,8 +172,9 @@ spec:
   blockDeviceMappings:
     - deviceName: /dev/xvda
       ebs:
-        volumeSize: 20Gi
-        volumeType: gp3
+        volumeSize: 30Gi
+        volumeType: gp2
+
   tags:
     Environment: ${var.environment}
     ManagedBy: karpenter
@@ -240,7 +216,7 @@ spec:
     memory: 50Gi
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
-    consolidateAfter: 30s
+    consolidateAfter: 120s
     expireAfter: 24h
 YAML
 }

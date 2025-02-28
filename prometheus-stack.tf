@@ -6,7 +6,11 @@ resource "helm_release" "prometheus_stack" {
   namespace        = "monitoring"
   create_namespace = true
 
-  force_update = true
+  force_update    = true
+  cleanup_on_fail = true
+  atomic          = true
+  wait            = true
+  timeout         = 900
 
   values = [
     templatefile("${path.module}/values/prometheus_stack_values.yaml.tpl", {
@@ -18,14 +22,16 @@ resource "helm_release" "prometheus_stack" {
     })
   ]
 
+  # Add recreate_pods to force pod recreation on update
+  set {
+    name  = "recreatePods"
+    value = "true"
+  }
+
   depends_on = [
     module.eks,
     time_sleep.wait_for_cluster
   ]
-
-  lifecycle {
-    create_before_destroy = true
-  }
 
   provisioner "local-exec" {
     when    = destroy
@@ -43,8 +49,10 @@ resource "kubectl_manifest" "prometheus_alert_rules" {
   ]
 }
 
-resource "kubernetes_ingress" "grafana_ingress" {
+# Custom Grafana Dashboards (applied only if prometheus-stack is enabled)
+resource "kubernetes_ingress_v1" "grafana_ingress" {
   count = var.enable_grafana_ingress ? 1 : 0
+  
   metadata {
     name      = "grafana-ingress"
     namespace = "monitoring"
@@ -65,10 +73,16 @@ resource "kubernetes_ingress" "grafana_ingress" {
 
       http {
         path {
-          path = "/"
+          path      = "/"
+          path_type = "Prefix"
+          
           backend {
-            service_name = "prometheus-stack-grafana"
-            service_port = 80
+            service {
+              name = "prometheus-stack-grafana"
+              port {
+                number = 80
+              }
+            }
           }
         }
       }
