@@ -163,4 +163,6 @@ module "eks" {
   }
 
   tags = local.common_tags
+
+  depends_on = [ module.vpc ]
 }
