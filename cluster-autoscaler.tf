@@ -80,15 +80,16 @@ resource "helm_release" "cluster_autoscaler" {
   depends_on = [
     null_resource.version_validation,
     time_sleep.wait_for_cluster,
-    time_sleep.wait_for_alb_controller
+    time_sleep.wait_for_alb_controller,
+    module.eks
   ]
 
   name       = "cluster-autoscaler"
   repository = "https://kubernetes.github.io/autoscaler"
   chart      = "cluster-autoscaler"
   namespace  = "kube-system"
-  version    = "9.34.0" # Especificar una versión estable
-  timeout    = 600      # Aumentar timeout para evitar fallos durante instalación
+  version    = "9.34.0"
+  timeout    = 600
 
   set {
     name  = "autoDiscovery.clusterName"
@@ -152,33 +153,31 @@ resource "helm_release" "cluster_autoscaler" {
     value = "30"
   }
 
-  # Configuración importante para el autoscalado adecuado de nodos
   set {
     name  = "extraArgs.scale-down-delay-after-add"
-    value = "5m" # Retraso para reducir la escala después de añadir nodos
+    value = "5m"
   }
 
   set {
     name  = "extraArgs.scale-down-unneeded-time"
-    value = "5m" # Tiempo antes de considerar escalar hacia abajo
+    value = "5m"
   }
 
   set {
     name  = "extraArgs.max-node-provision-time"
-    value = "15m" # Máximo tiempo de espera para provisionar nodos
+    value = "15m"
   }
 
   set {
     name  = "extraArgs.balance-similar-node-groups"
-    value = "true" # Equilibrar grupos de nodos similares
+    value = "true"
   }
 
   set {
     name  = "extraArgs.expander"
-    value = "least-waste" # Estrategia para elegir grupo de nodos cuando se escala
+    value = "least-waste"
   }
 
-  # Tolerations para permitir que el autoscaler se ejecute incluso en nodos con taints
   set {
     name  = "tolerations[0].key"
     value = "node.kubernetes.io/not-ready"
@@ -199,7 +198,6 @@ resource "helm_release" "cluster_autoscaler" {
     value = "300"
   }
 
-  # Tolerations para que funcione incluso durante problemas de nodo
   set {
     name  = "tolerations[1].key"
     value = "node.kubernetes.io/unreachable"
@@ -220,7 +218,6 @@ resource "helm_release" "cluster_autoscaler" {
     value = "300"
   }
 
-  # Configuración de reintentos para mejorar la fiabilidad
   set {
     name  = "awsRegion"
     value = var.aws_region
