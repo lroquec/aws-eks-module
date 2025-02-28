@@ -80,6 +80,72 @@ terraform plan
 terraform apply
 ```
 
+## Example Configurations
+
+The module comes with predefined example configurations to help you get started quickly:
+
+### Basic Usage Example
+
+The basic example provides a minimal configuration to deploy an EKS cluster with default settings:
+
+```bash
+cd examples/basic-usage
+terraform init
+terraform apply
+```
+
+This example includes:
+
+- EKS cluster with default version
+- VPC with public and private subnets
+- Default security groups
+- Basic IAM roles for cluster access
+
+### Complete Example
+
+The complete example demonstrates all available features and add-ons:
+
+```bash
+cd examples/complete
+terraform init
+terraform apply
+```
+
+This example includes:
+
+- EKS cluster with specified version
+- Advanced networking configuration
+- All available add-ons:
+  - Metrics Server
+  - AWS Load Balancer Controller
+  - External DNS
+  - Prometheus Stack with Grafana
+  - Either Karpenter or Cluster Autoscaler
+- IAM users and roles with different permission levels
+- Storage configurations
+
+### Cleanup Script
+
+The complete example includes a cleanup script to ensure proper resource cleanup before destroying the infrastructure. This is particularly useful for EKS clusters with many add-ons that might leave orphaned resources:
+
+```bash
+cd examples/complete
+./cleanup.sh
+```
+
+The script performs these cleanup tasks:
+
+- Scales down all deployments to avoid issues during teardown
+- Deletes all ingress resources to trigger ALB deletion
+- Removes AWS Load Balancers created by the Kubernetes cluster
+- Cleans up orphaned target groups
+- Removes Karpenter resources if enabled
+- Cleans up persistent volumes and claims
+- Fixes stuck namespaces by removing finalizers
+- Performs final cleanup of any remaining resources
+
+This script helps prevent common issues where `terraform destroy` fails due to resources that aren't properly cleaned up by Terraform alone.
+
 ## Module Structure
 
 ```
@@ -246,6 +312,8 @@ developer_users       = ["dev1", "dev2"]
    - Metrics Server integration
    - CloudWatch logging
    - Control plane logging
+   - Optional Prometheus and Grafana
+   - Optional CloudWatch observability
 
 ## Note
 
