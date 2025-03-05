@@ -159,7 +159,7 @@ kind: EC2NodeClass
 metadata:
   name: default
 spec:
-  amiFamily: AL2023 # Dropped support for AL2
+  # amiFamily: AL2023 # Dropped support for AL2
   role: "${data.aws_iam_role.nodegroup_role.name}"
   subnetSelectorTerms:
     - tags:
