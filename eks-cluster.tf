@@ -107,7 +107,7 @@ module "eks" {
 
   eks_managed_node_group_defaults = {
     ami_type       = "AL2023_x86_64_STANDARD"
-    instance_types = ["t3.small"]
+    instance_types = ["m5.large"]
 
     iam_role_additional_policies = {
       AmazonEBSCSIDriverPolicy     = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
@@ -121,7 +121,7 @@ module "eks" {
       max_size     = 5
       desired_size = 1
 
-      instance_types = ["t3.medium"]
+      instance_types = ["m5.large"]
       capacity_type  = "ON_DEMAND"
 
       labels = {
