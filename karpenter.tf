@@ -203,10 +203,10 @@ spec:
           values: ["linux"]
         - key: karpenter.sh/capacity-type
           operator: In
-          values: ["spot"]
+          values: ["spot", "on-demand"]
         - key: node.kubernetes.io/instance-type
           operator: In
-          values: ["t3.small", "t3.medium"]
+          values: ["t3.medium", "t3.xlarge", "m5.xlarge"]
       nodeClassRef:
         name: default
         group: karpenter.k8s.aws
@@ -216,7 +216,7 @@ spec:
     memory: 50Gi
   disruption:
     consolidationPolicy: WhenEmptyOrUnderutilized
-    consolidateAfter: 120s
-    expireAfter: 24h
+    consolidateAfter: 1m
+    expireAfter: 720h
 YAML
 }
